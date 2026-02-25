@@ -1,0 +1,10 @@
+src/.DS_Store
+.DS_Store
+src/raw_data/training/annotation
+src/raw_data/training/audio
+src/raw_data/training/transcription
+src/raw_data/training/video
+src/raw_data/validation/annotation
+src/raw_data/validation/audio
+src/raw_data/validation/transcription
+src/raw_data/validation/video
