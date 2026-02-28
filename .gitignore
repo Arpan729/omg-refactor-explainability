@@ -8,3 +8,7 @@ src/raw_data/validation/annotation
 src/raw_data/validation/audio
 src/raw_data/validation/transcription
 src/raw_data/validation/video
+src/transcript/artifacts/checkpoints
+src/transcript/artifacts/features
+src/transcript/artifacts/predictions
+src/transcript/tests/__pycache__

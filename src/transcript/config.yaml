@@ -1,0 +1,35 @@
+paths:
+  srt_dir: transcript/data/srt
+  train_ann_dir: data/Training/Annotations
+  val_ann_dir: data/Validation/Annotations
+  lexicon_dir: transcript/lexicons
+  feature_dir: transcript_next/artifacts/features
+  checkpoint_dir: transcript_next/artifacts/checkpoints
+  prediction_dir: transcript_next/artifacts/predictions
+
+split:
+  manifest_id: transcript_next_v1
+  subjects_train: [1,2,3,4,5,6,7,8,9,10]
+  subjects_val: [1,2,3,4,5,6,7,8,9,10]
+  stories_train: [2,4,5,8]
+  stories_val: [1]
+
+model:
+  window_size: 100
+  stride: 50
+  embedding_size: 11
+  lstm_hidden_dim: 64
+  subject_embed_dim: 2
+  dense_hidden_dim: 32
+  dropout: 0.2
+
+train:
+  epochs: 20
+  batch_size: 256
+  lr: 0.0001
+  patience: 5
+  device: auto
+
+predict:
+  batch_size: 512
+  device: auto
