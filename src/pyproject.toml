@@ -1,0 +1,23 @@
+[project]
+name = "omg-challenge2018-submission-code"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "dlib>=20.0.0",
+    "essentia>=2.1b6.dev1389",
+    "h5py==3.14.0",
+    "keras==3.10.0",
+    "matplotlib==3.9.4",
+    "numpy>=2.1.0",
+    "opencv-python>=4.11.0.86",
+    "pandas==2.3.1",
+    "pyarrow>=17.0.0",
+    "pyyaml>=6.0.2",
+    "pysrt==1.1.2",
+    "scikit-image==0.24.0",
+    "tensorboard==2.20.0",
+    "tensorflow==2.20.0",
+    "torch>=2.5.0",
+]

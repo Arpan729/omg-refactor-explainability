@@ -21,7 +21,7 @@ from common import (
 
 def parse_args():
     p = argparse.ArgumentParser(description="Predict transcript_next val outputs to parquet.")
-    p.add_argument("--config", type=str, default="transcript_next/config.yaml")
+    p.add_argument("--config", type=str, default="transcript/config.yaml")
     return p.parse_args()
 
 

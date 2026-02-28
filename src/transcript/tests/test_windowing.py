@@ -1,7 +1,7 @@
 import unittest
 import numpy as np
 
-from transcript_next.common import window_sequence
+from transcript.common import window_sequence
 
 
 class TestWindowing(unittest.TestCase):

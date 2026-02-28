@@ -12,3 +12,5 @@ src/transcript/artifacts/checkpoints
 src/transcript/artifacts/features
 src/transcript/artifacts/predictions
 src/transcript/tests/__pycache__
+src/transcript/__pycache__
+src/raw_data/transcript/srt

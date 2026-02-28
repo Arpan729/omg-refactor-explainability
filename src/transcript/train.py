@@ -18,7 +18,7 @@ from common import (
 
 def parse_args():
     p = argparse.ArgumentParser(description="Train transcript_next PyTorch model.")
-    p.add_argument("--config", type=str, default="transcript_next/config.yaml")
+    p.add_argument("--config", type=str, default="transcript/config.yaml")
     return p.parse_args()
 
 

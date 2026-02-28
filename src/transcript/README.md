@@ -1,21 +1,26 @@
-## transcript_next
+## transcript
 
 A clean-slate transcript pipeline isolated from legacy repo configs.
 
 ### Principles
 1. No dependency on `configs/defaults.yaml` or old split manifests.
-2. Single source of truth: `transcript_next/config.yaml`.
+2. Single source of truth: `transcript/config.yaml`.
 3. Three commands only.
 
 ### Run
 ```bash
-uv run python transcript_next/preprocess.py --config transcript_next/config.yaml
-uv run python transcript_next/train.py --config transcript_next/config.yaml
-uv run python transcript_next/predict.py --config transcript_next/config.yaml
+uv run python transcript/preprocess.py --config transcript/config.yaml
+uv run python transcript/train.py --config transcript/config.yaml
+uv run python transcript/predict.py --config transcript/config.yaml
+```
+
+### Tests
+```bash
+uv run -m unittest discover -s transcript/tests -p "test_*.py"
 ```
 
 ### Config
-`transcript_next/config.yaml` contains:
+`transcript/config.yaml` contains:
 1. `paths`: all input/output directories.
 2. `split`: train/val subject+story lists and `manifest_id`.
 3. `model`: architecture/windowing values.

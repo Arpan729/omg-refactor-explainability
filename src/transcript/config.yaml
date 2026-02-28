@@ -1,14 +1,14 @@
 paths:
-  srt_dir: transcript/data/srt
-  train_ann_dir: data/Training/Annotations
-  val_ann_dir: data/Validation/Annotations
-  lexicon_dir: transcript/lexicons
-  feature_dir: transcript_next/artifacts/features
-  checkpoint_dir: transcript_next/artifacts/checkpoints
-  prediction_dir: transcript_next/artifacts/predictions
+  srt_dir: raw_data/transcript/srt
+  train_ann_dir: raw_data/training/annotation
+  val_ann_dir: raw_data/validation/annotation
+  lexicon_dir: raw_data/transcript/lexicons
+  feature_dir: transcript/artifacts/features
+  checkpoint_dir: transcript/artifacts/checkpoints
+  prediction_dir: transcript/artifacts/predictions
 
 split:
-  manifest_id: transcript_next_v1
+  manifest_id: transcript_v1
   subjects_train: [1,2,3,4,5,6,7,8,9,10]
   subjects_val: [1,2,3,4,5,6,7,8,9,10]
   stories_train: [2,4,5,8]

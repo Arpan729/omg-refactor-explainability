@@ -1,7 +1,7 @@
 import unittest
 import numpy as np
 
-from transcript_next.common import ccc_numpy
+from transcript.common import ccc_numpy
 
 
 class TestCCC(unittest.TestCase):
