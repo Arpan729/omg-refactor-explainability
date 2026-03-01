@@ -1,0 +1,48 @@
+paths:
+  train_ann_dir: raw_data/training/annotation
+  val_ann_dir: raw_data/validation/annotation
+  train_audio_dir: raw_data/training/audio
+  val_audio_dir: raw_data/validation/audio
+  feature_dir: speech/artifacts/features
+  checkpoint_dir: speech/artifacts/checkpoints
+  prediction_dir: speech/artifacts/predictions
+
+split:
+  manifest_id: speech_v1
+  subjects_train: [1,2,3,4,5,6,7,8,9,10]
+  subjects_val: [1,2,3,4,5,6,7,8,9,10]
+  stories_train: [2,4,5,8]
+  stories_val: [1]
+
+audio:
+  sample_rate: 16000
+  fps: 25.0
+  file_suffix: ".mp4.wav"
+
+feature:
+  n_fft: 256
+  hop_length: 160
+  win_length: 256
+  n_freq_bins: 129
+  log_offset: 1.0e-6
+
+model:
+  sequence_length: 200
+  stride: 100
+  hidden_dim: 128
+  num_layers: 1
+  dropout: 0.2
+  subject_embed_dim: 8
+
+train:
+  epochs: 20
+  batch_size: 64
+  lr: 0.0001
+  weight_decay: 0.0
+  patience: 5
+  seed: 42
+  device: auto
+
+predict:
+  batch_size: 128
+  device: auto

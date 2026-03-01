@@ -14,3 +14,8 @@ src/transcript/artifacts/predictions
 src/transcript/tests/__pycache__
 src/transcript/__pycache__
 src/raw_data/transcript/srt
+src/speech/__pycache__
+src/speech/artifacts/checkpoints
+src/speech/artifacts/features
+src/speech/artifacts/predictions
+src/speech/tests/__pycache__
