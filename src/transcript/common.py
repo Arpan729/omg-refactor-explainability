@@ -183,15 +183,27 @@ def window_sequence(x: np.ndarray, y: np.ndarray, window_size: int, stride: int)
     if n < window_size:
         return np.empty((0, window_size, x.shape[-1]), dtype=np.float32), np.empty((0,), dtype=np.float32)
 
+    starts = _window_starts(n, window_size=window_size, stride=stride)
     x_windows = []
     y_windows = []
-    num_windows = ((n - window_size) // stride) + 1
-    for i in range(num_windows):
-        start = i * stride
+    for start in starts:
         end = start + window_size
         x_windows.append(x[start:end])
         y_windows.append(float(np.mean(y[start:end])))
     return np.asarray(x_windows, dtype=np.float32), np.asarray(y_windows, dtype=np.float32)
+
+
+def window_features(x: np.ndarray, window_size: int, stride: int) -> np.ndarray:
+    n = len(x)
+    if n < window_size:
+        return np.empty((0, window_size, x.shape[-1]), dtype=np.float32)
+    starts = _window_starts(n, window_size=window_size, stride=stride)
+    x_windows = [x[start : start + window_size] for start in starts]
+    return np.asarray(x_windows, dtype=np.float32)
+
+
+def _window_starts(n: int, window_size: int, stride: int) -> list[int]:
+    return [i * stride for i in range(((n - window_size) // stride) + 1)]
 
 
 class TranscriptWindowDataset(Dataset):

@@ -12,9 +12,8 @@ from common import (
     iter_samples,
     load_config,
     read_features,
-    read_labels,
     validate_prediction_parquet,
-    window_sequence,
+    window_features,
     write_prediction_parquet,
 )
 
@@ -67,14 +66,12 @@ def main():
         sample = SampleIndex(subject=sample.subject, story=sample.story, split="val")
         try:
             x = read_features(cfg, sample)
-            y = read_labels(cfg, sample)
         except FileNotFoundError as exc:
             print(f"Skipping {sample.subject}/{sample.story}: {exc}")
             continue
 
-        xw, _ = window_sequence(
+        xw = window_features(
             x,
-            y,
             window_size=int(cfg["model"]["window_size"]),
             stride=int(cfg["model"]["stride"]),
         )
