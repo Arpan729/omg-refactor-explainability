@@ -13,10 +13,9 @@ from common import (
     iter_samples,
     load_config,
     read_features,
-    read_labels,
     reconstruct_from_windows,
     validate_prediction_parquet,
-    window_sequence,
+    window_features,
     write_prediction_parquet,
 )
 
@@ -76,15 +75,13 @@ def main():
         sample = SampleIndex(subject=sample.subject, story=sample.story, split="val")
         try:
             x = read_features(cfg, sample)
-            y = read_labels(cfg, sample)
         except FileNotFoundError as exc:
             print(f"Skipping {sample.subject}/{sample.story}: {exc}")
             continue
 
         x_norm = (x - feature_mean) / max(feature_std, 1e-8)
-        xw, _, starts = window_sequence(
+        xw, starts = window_features(
             x_norm,
-            y,
             window_size=seq_len,
             stride=stride,
             include_last=True,
@@ -95,7 +92,7 @@ def main():
 
         pred_windows = predict_windows(model, xw, sample.subject, batch_size, device)
         pred_windows = denorm_target(pred_windows, target_min, target_max)
-        pred_frames = reconstruct_from_windows(pred_windows, starts, total_len=len(y))
+        pred_frames = reconstruct_from_windows(pred_windows, starts, total_len=len(x))
 
         out_path = write_prediction_parquet(cfg, sample, pred_frames.astype(np.float32))
         validate_prediction_parquet(out_path)

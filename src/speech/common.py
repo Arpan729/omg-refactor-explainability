@@ -325,14 +325,37 @@ def window_sequence(
             np.empty((0,), dtype=np.int32),
         )
 
-    starts = list(range(0, n - window_size + 1, stride))
-    last_start = n - window_size
-    if include_last and (not starts or starts[-1] != last_start):
-        starts.append(last_start)
+    starts = _window_starts(n, window_size=window_size, stride=stride, include_last=include_last)
 
     x_windows = np.asarray([x[s : s + window_size] for s in starts], dtype=np.float32)
     y_windows = np.asarray([y[s : s + window_size] for s in starts], dtype=np.float32)
     return x_windows, y_windows, np.asarray(starts, dtype=np.int32)
+
+
+def window_features(
+    x: np.ndarray,
+    window_size: int,
+    stride: int,
+    include_last: bool = True,
+) -> tuple[np.ndarray, np.ndarray]:
+    n = len(x)
+    if n < window_size:
+        return (
+            np.empty((0, window_size, x.shape[-1]), dtype=np.float32),
+            np.empty((0,), dtype=np.int32),
+        )
+
+    starts = _window_starts(n, window_size=window_size, stride=stride, include_last=include_last)
+    x_windows = np.asarray([x[s : s + window_size] for s in starts], dtype=np.float32)
+    return x_windows, np.asarray(starts, dtype=np.int32)
+
+
+def _window_starts(n: int, window_size: int, stride: int, include_last: bool) -> list[int]:
+    starts = list(range(0, n - window_size + 1, stride))
+    last_start = n - window_size
+    if include_last and (not starts or starts[-1] != last_start):
+        starts.append(last_start)
+    return starts
 
 
 def reconstruct_from_windows(pred_windows: np.ndarray, starts: np.ndarray, total_len: int) -> np.ndarray:

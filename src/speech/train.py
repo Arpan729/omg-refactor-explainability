@@ -5,6 +5,7 @@ import argparse
 import numpy as np
 
 from common import (
+    SampleIndex,
     SpeechBiGRUModel,
     SpeechWindowDataset,
     ccc_loss_torch_sequence,
@@ -12,8 +13,13 @@ from common import (
     checkpoint_path,
     choose_device,
     denorm_target,
+    iter_samples,
     load_config,
+    read_features,
+    read_labels,
+    reconstruct_from_windows,
     set_seed,
+    window_features,
 )
 
 
@@ -23,24 +29,69 @@ def parse_args():
     return p.parse_args()
 
 
-def evaluate(model, loader, device, target_min: float, target_max: float):
+def predict_windows(model, x_windows: np.ndarray, subject_id: int, batch_size: int, device: "torch.device") -> np.ndarray:
     import torch
 
     model.eval()
+    outputs = []
+    sid_tensor = torch.full((len(x_windows),), subject_id - 1, dtype=torch.long)
+    with torch.no_grad():
+        for start in range(0, len(x_windows), batch_size):
+            end = start + batch_size
+            xb = torch.tensor(x_windows[start:end], dtype=torch.float32).to(device)
+            sb = sid_tensor[start:end].to(device)
+            yb = model(xb, sb)
+            outputs.append(yb.detach().cpu().numpy())
+    if not outputs:
+        return np.zeros((0, x_windows.shape[1]), dtype=np.float32)
+    return np.concatenate(outputs, axis=0)
+
+
+def evaluate(
+    cfg: dict,
+    model,
+    device,
+    batch_size: int,
+    feature_mean: float,
+    feature_std: float,
+    target_min: float,
+    target_max: float,
+):
     y_true_all = []
     y_pred_all = []
-    with torch.no_grad():
-        for x, sid, y in loader:
-            pred = model(x.to(device), sid.to(device))
-            y_true_all.append(y.numpy())
-            y_pred_all.append(pred.detach().cpu().numpy())
+    seq_len = int(cfg["model"]["sequence_length"])
+    stride = int(cfg["model"]["stride"])
+
+    for sample in iter_samples(cfg, "val"):
+        sample = SampleIndex(subject=sample.subject, story=sample.story, split="val")
+        try:
+            x = read_features(cfg, sample)
+            y = read_labels(cfg, sample)
+        except FileNotFoundError:
+            continue
+
+        x_norm = (x - feature_mean) / max(feature_std, 1e-8)
+        xw, starts = window_features(
+            x_norm,
+            window_size=seq_len,
+            stride=stride,
+            include_last=True,
+        )
+        if len(xw) == 0:
+            continue
+
+        pred_windows = predict_windows(model, xw, sample.subject, batch_size, device)
+        pred_windows = denorm_target(pred_windows, target_min, target_max)
+        pred_frames = reconstruct_from_windows(pred_windows, starts, total_len=len(y))
+
+        y_true_all.append(y.reshape(-1))
+        y_pred_all.append(pred_frames.reshape(-1))
+
     if not y_true_all:
         return float("nan")
     y_true = np.concatenate(y_true_all, axis=0)
     y_pred = np.concatenate(y_pred_all, axis=0)
-    y_true = denorm_target(y_true, target_min, target_max)
-    y_pred = denorm_target(y_pred, target_min, target_max)
-    return ccc_numpy(y_true.reshape(-1), y_pred.reshape(-1))
+    return ccc_numpy(y_true, y_pred)
 
 
 def main():
@@ -58,17 +109,9 @@ def main():
     train_ds = SpeechWindowDataset(cfg, split="train")
     if len(train_ds) == 0:
         raise RuntimeError("No training windows found. Run preprocess first.")
-    val_ds = SpeechWindowDataset(
-        cfg,
-        split="val",
-        feature_mean=train_ds.feature_mean,
-        feature_std=train_ds.feature_std,
-        target_min=train_ds.target_min,
-        target_max=train_ds.target_max,
-    )
 
     train_loader = DataLoader(train_ds, batch_size=int(train_cfg["batch_size"]), shuffle=True)
-    val_loader = DataLoader(val_ds, batch_size=int(train_cfg["batch_size"]), shuffle=False)
+    val_batch_size = int(train_cfg["batch_size"])
 
     model = SpeechBiGRUModel(cfg).to(device)
     optim = torch.optim.Adam(
@@ -98,7 +141,16 @@ def main():
             total_loss += float(loss.item())
 
         train_loss = total_loss / max(len(train_loader), 1)
-        val_ccc = evaluate(model, val_loader, device, train_ds.target_min, train_ds.target_max)
+        val_ccc = evaluate(
+            cfg=cfg,
+            model=model,
+            device=device,
+            batch_size=val_batch_size,
+            feature_mean=train_ds.feature_mean,
+            feature_std=train_ds.feature_std,
+            target_min=train_ds.target_min,
+            target_max=train_ds.target_max,
+        )
         print(f"Epoch {epoch:03d} | train_loss={train_loss:.6f} | val_ccc={val_ccc:.6f}")
 
         if val_ccc > best_ccc:
