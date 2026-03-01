@@ -24,19 +24,24 @@ feature:
   hop_length: 160
   win_length: 256
   n_freq_bins: 129
-  log_offset: 1.0e-6
+  highpass_cutoff_hz: 100.0
+  highpass_order: 8
+  preemphasis_mode: "paper_eq1"
+  compression_type: "power"
+  compression_power: 0.6666667
 
 model:
   sequence_length: 200
   stride: 100
-  hidden_dim: 128
+  hidden_dim: 250
   num_layers: 1
-  dropout: 0.2
+  dropout: 0.3
+  use_batch_norm: true
   subject_embed_dim: 8
 
 train:
   epochs: 20
-  batch_size: 64
+  batch_size: 50
   lr: 0.0001
   weight_decay: 0.0
   patience: 5

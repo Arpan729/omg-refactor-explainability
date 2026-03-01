@@ -9,6 +9,7 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
+from scipy import signal
 import yaml
 
 try:
@@ -257,7 +258,11 @@ def extract_torch_features(waveform: np.ndarray, sample_rate: int, cfg: dict[str
     hop = int(feature_cfg["hop_length"])
     win = int(feature_cfg["win_length"])
     n_freq_bins = int(feature_cfg["n_freq_bins"])
-    log_offset = float(feature_cfg["log_offset"])
+    highpass_cutoff_hz = float(feature_cfg["highpass_cutoff_hz"])
+    highpass_order = int(feature_cfg["highpass_order"])
+    preemphasis_mode = str(feature_cfg["preemphasis_mode"])
+    compression_type = str(feature_cfg["compression_type"])
+    compression_power = float(feature_cfg["compression_power"])
 
     wav = torch.tensor(waveform, dtype=torch.float32)
     if sample_rate != target_sr:
@@ -265,6 +270,11 @@ def extract_torch_features(waveform: np.ndarray, sample_rate: int, cfg: dict[str
         wav = wav.view(1, 1, -1)
         new_len = int(round((wav.shape[-1] * target_sr) / float(sample_rate)))
         wav = F.interpolate(wav, size=new_len, mode="linear", align_corners=False).view(-1)
+    wav_np = wav.cpu().numpy().astype(np.float32)
+
+    wav_np = apply_highpass_filter(wav_np, target_sr, cutoff_hz=highpass_cutoff_hz, order=highpass_order)
+    wav_np = apply_preemphasis(wav_np, mode=preemphasis_mode)
+    wav = torch.tensor(wav_np, dtype=torch.float32)
 
     window = torch.hann_window(win)
     spec = torch.stft(
@@ -279,8 +289,34 @@ def extract_torch_features(waveform: np.ndarray, sample_rate: int, cfg: dict[str
     mag = torch.abs(spec)
     if n_freq_bins < mag.shape[0]:
         mag = mag[:n_freq_bins]
-    feats = torch.log(mag + log_offset).transpose(0, 1).contiguous()
+    if compression_type == "power":
+        feats = torch.pow(mag, compression_power).transpose(0, 1).contiguous()
+    else:
+        raise ValueError(f"Unsupported feature.compression_type: {compression_type}")
     return feats.cpu().numpy().astype(np.float32)
+
+
+def apply_highpass_filter(waveform: np.ndarray, sample_rate: int, cutoff_hz: float, order: int) -> np.ndarray:
+    if cutoff_hz <= 0.0:
+        return np.asarray(waveform, dtype=np.float32)
+    nyquist = 0.5 * float(sample_rate)
+    if cutoff_hz >= nyquist:
+        raise ValueError(f"High-pass cutoff must be below Nyquist ({nyquist}), got {cutoff_hz}")
+    sos = signal.butter(order, cutoff_hz, btype="highpass", fs=float(sample_rate), output="sos")
+    filtered = signal.sosfiltfilt(sos, waveform.astype(np.float64))
+    return filtered.astype(np.float32)
+
+
+def apply_preemphasis(waveform: np.ndarray, mode: str = "paper_eq1") -> np.ndarray:
+    x = np.asarray(waveform, dtype=np.float32)
+    if x.size == 0:
+        return x
+    if mode != "paper_eq1":
+        raise ValueError(f"Unsupported preemphasis mode: {mode}")
+    y = np.empty_like(x)
+    y[0] = x[0] / 3.0
+    y[1:] = (2.0 * x[1:] - x[:-1]) / 3.0
+    return y
 
 
 def align_features_to_frames(features: np.ndarray, num_frames: int) -> np.ndarray:
@@ -456,6 +492,7 @@ class SpeechBiGRUModel(nn.Module):
         hidden_dim = int(m["hidden_dim"])
         num_layers = int(m["num_layers"])
         dropout = float(m["dropout"])
+        use_batch_norm = bool(m.get("use_batch_norm", True))
         self.subject_embed_dim = int(m["subject_embed_dim"])
 
         all_subjects = set(cfg["split"]["subjects_train"]) | set(cfg["split"]["subjects_val"])
@@ -469,6 +506,7 @@ class SpeechBiGRUModel(nn.Module):
             dropout=dropout if num_layers > 1 else 0.0,
             bidirectional=True,
         )
+        self.batch_norm = nn.BatchNorm1d(hidden_dim * 2) if use_batch_norm else nn.Identity()
         self.dropout = nn.Dropout(dropout)
 
         if self.subject_embed_dim > 0:
@@ -481,6 +519,10 @@ class SpeechBiGRUModel(nn.Module):
 
     def forward(self, x: torch.Tensor, subject_idx: torch.Tensor) -> torch.Tensor:
         seq, _ = self.gru(x)
+        if isinstance(self.batch_norm, nn.BatchNorm1d):
+            seq = self.batch_norm(seq.transpose(1, 2)).transpose(1, 2)
+        else:
+            seq = self.batch_norm(seq)
         seq = self.dropout(seq)
         if self.subject_embed is not None:
             sid = self.subject_embed(subject_idx).unsqueeze(1).expand(-1, seq.shape[1], -1)
