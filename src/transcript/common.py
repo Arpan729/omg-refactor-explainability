@@ -283,14 +283,40 @@ class TranscriptLSTMModel(nn.Module):
         return self.head(torch.cat([pooled, sid], dim=1)).squeeze(-1)
 
 
+# def write_prediction_parquet(cfg: dict[str, Any], sample: SampleIndex, y_pred: np.ndarray) -> Path:
+#     out_dir = Path(cfg["paths"]["prediction_dir"])
+#     out_dir.mkdir(parents=True, exist_ok=True)
+#     frame_idx = np.arange(len(y_pred), dtype=np.int32)
+#     df = pd.DataFrame(
+#         {
+#             "frame_idx": frame_idx,
+#             "timestamp_s": frame_idx.astype(np.float32) / 25.0,
+#             "y_pred": y_pred.astype(np.float32),
+#             "subject_id": np.full(len(y_pred), sample.subject, dtype=np.int16),
+#             "story_id": np.full(len(y_pred), sample.story, dtype=np.int16),
+#             "split": [sample.split] * len(y_pred),
+#             "manifest_id": [cfg["split"]["manifest_id"]] * len(y_pred),
+#         }
+#     )
+#     out_path = out_dir / f"Subject_{sample.subject}_Story_{sample.story}.parquet"
+#     df.to_parquet(out_path, index=False)
+#     return out_path
 def write_prediction_parquet(cfg: dict[str, Any], sample: SampleIndex, y_pred: np.ndarray) -> Path:
     out_dir = Path(cfg["paths"]["prediction_dir"])
     out_dir.mkdir(parents=True, exist_ok=True)
-    frame_idx = np.arange(len(y_pred), dtype=np.int32)
+    window_size = int(cfg["model"]["window_size"])
+    stride = int(cfg["model"]["stride"])
+    window_idx = np.arange(len(y_pred), dtype=np.int32)
+    window_start_frame = (window_idx * stride).astype(np.int32)
+    window_end_frame = (window_start_frame + window_size - 1).astype(np.int32)
+    window_center_frame = (window_start_frame + (window_size // 2)).astype(np.int32)
     df = pd.DataFrame(
         {
-            "frame_idx": frame_idx,
-            "timestamp_s": frame_idx.astype(np.float32) / 25.0,
+            "window_idx": window_idx,
+            "window_start_frame": window_start_frame,
+            "window_end_frame": window_end_frame,
+            "window_center_frame": window_center_frame,
+            "window_center_s": window_center_frame.astype(np.float32) / 25.0,
             "y_pred": y_pred.astype(np.float32),
             "subject_id": np.full(len(y_pred), sample.subject, dtype=np.int16),
             "story_id": np.full(len(y_pred), sample.story, dtype=np.int16),
@@ -303,14 +329,35 @@ def write_prediction_parquet(cfg: dict[str, Any], sample: SampleIndex, y_pred: n
     return out_path
 
 
+# def validate_prediction_parquet(path: str | Path) -> None:
+#     required = ["frame_idx", "timestamp_s", "y_pred", "subject_id", "story_id", "split", "manifest_id"]
+#     df = pd.read_parquet(path)
+#     missing = [c for c in required if c not in df.columns]
+#     if missing:
+#         raise ValueError(f"Missing columns in {path}: {missing}")
+#     if df["frame_idx"].duplicated().any() or not df["frame_idx"].is_monotonic_increasing:
+#         raise ValueError(f"Invalid frame_idx in {path}")
+#     if df["y_pred"].isna().any():
+#         raise ValueError(f"NaN y_pred values in {path}")
 def validate_prediction_parquet(path: str | Path) -> None:
-    required = ["frame_idx", "timestamp_s", "y_pred", "subject_id", "story_id", "split", "manifest_id"]
+    required = [
+        "window_idx",
+        "window_start_frame",
+        "window_end_frame",
+        "window_center_frame",
+        "window_center_s",
+        "y_pred",
+        "subject_id",
+        "story_id",
+        "split",
+        "manifest_id",
+    ]
     df = pd.read_parquet(path)
     missing = [c for c in required if c not in df.columns]
     if missing:
         raise ValueError(f"Missing columns in {path}: {missing}")
-    if df["frame_idx"].duplicated().any() or not df["frame_idx"].is_monotonic_increasing:
-        raise ValueError(f"Invalid frame_idx in {path}")
+    if df["window_idx"].duplicated().any() or not df["window_idx"].is_monotonic_increasing:
+        raise ValueError(f"Invalid window_idx in {path}")
     if df["y_pred"].isna().any():
         raise ValueError(f"NaN y_pred values in {path}")
 

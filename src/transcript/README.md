@@ -32,10 +32,13 @@ Parquet only:
 `<prediction_dir>/Subject_{subject}_Story_{story}.parquet`
 
 Required columns:
-1. `frame_idx`
-2. `timestamp_s`
-3. `y_pred`
-4. `subject_id`
-5. `story_id`
-6. `split`
-7. `manifest_id`
+1. `window_idx`
+2. `window_start_frame`
+3. `window_end_frame`
+4. `window_center_frame`
+5. `window_center_s`
+6. `y_pred`
+7. `subject_id`
+8. `story_id`
+9. `split`
+10. `manifest_id`

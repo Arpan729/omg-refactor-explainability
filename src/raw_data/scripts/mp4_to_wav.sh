@@ -1,6 +1,6 @@
 #!/bin/bash
-VALIDATION_DIRECTORY="../Validation/audio";
-TRAINING_DIRECTORY="../Training/audio";
+VALIDATION_DIRECTORY="../validation/audio";
+TRAINING_DIRECTORY="../training/audio";
 
 if [ ! -d "$VALIDATION_DIRECTORY" ]; then
     mkdir "$VALIDATION_DIRECTORY"
@@ -12,12 +12,12 @@ if [ ! -d "$TRAINING_DIRECTORY" ]; then
     echo "Training Directory created."
 fi
 
-for file in ../Validation/Videos/*.mp4; do
+for file in ../validation/video/*.mp4; do
     filename=$(basename "$file" .mp4)
-    ffmpeg -i "$file" -vn -ac 1 -ar 16000 -acodec pcm_s16le "../Validation/audio/${filename}.mp4.wav"
+    ffmpeg -i "$file" -vn -ac 1 -ar 16000 -acodec pcm_s16le "../validation/audio/${filename}.mp4.wav"
 done
 
-for file in ../Training/Videos/*.mp4; do
+for file in ../training/video/*.mp4; do
     filename=$(basename "$file" .mp4)
-    ffmpeg -i "$file" -vn -ac 1 -ar 16000 -acodec pcm_s16le "../Training/audio/${filename}.mp4.wav"
+    ffmpeg -i "$file" -vn -ac 1 -ar 16000 -acodec pcm_s16le "../training/audio/${filename}.mp4.wav"
 done
