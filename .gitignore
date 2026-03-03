@@ -19,3 +19,5 @@ src/speech/artifacts/checkpoints
 src/speech/artifacts/features
 src/speech/artifacts/predictions
 src/speech/tests/__pycache__
+src/landmarks/artifacts/landmarks/train
+src/landmarks/artifacts/shape_predictor

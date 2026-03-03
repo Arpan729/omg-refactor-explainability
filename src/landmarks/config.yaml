@@ -1,0 +1,44 @@
+paths:
+  train_videos_dir: raw_data/training/video
+  val_videos_dir: raw_data/validation/video
+  predictor_path: landmarks/artifacts/shape_predictor/shape_predictor_68_face_landmarks.dat
+  train_ann_dir: raw_data/training/annotation
+  val_ann_dir: raw_data/validation/annotation
+  train_landmarks_csv_dir: landmarks/artifacts/landmarks/train
+  val_landmarks_csv_dir: landmarks/artifacts/landmarks/val
+  feature_dir: landmarks/artifacts/features
+  checkpoint_dir: landmarks/artifacts/checkpoints
+  prediction_dir: landmarks/artifacts/predictions
+
+split:
+  manifest_id: landmarks_v1
+  subjects_train: [1,2,3,4,5,6,7,8,9,10]
+  subjects_val: [1,2,3,4,5,6,7,8,9,10]
+  stories_train: [1,4,5,8]
+  stories_val: [2]
+
+audio:
+  fps: 25.0
+
+extract:
+  detector_upsample: 1
+
+model:
+  window_size: 5
+  conv_channels: [100, 100, 160, 160]
+  kernel_size: 2
+  dense_dim: 32
+  dropout: 0.0
+
+train:
+  epochs: 100
+  batch_size: 512
+  lr: 0.000001
+  weight_decay: 0.0
+  patience: 20
+  seed: 42
+  device: auto
+
+predict:
+  batch_size: 1024
+  device: auto
