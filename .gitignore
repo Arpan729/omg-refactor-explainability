@@ -21,3 +21,9 @@ src/speech/artifacts/predictions
 src/speech/tests/__pycache__
 src/landmarks/artifacts/landmarks/train
 src/landmarks/artifacts/shape_predictor
+src/raw_face/__pycache__
+src/raw_face/artifacts/faces/train
+src/landmarks/artifacts/checkpoints
+src/landmarks/artifacts/features/aligned
+src/landmarks/artifacts/landmarks/val
+src/landmarks/artifacts/predictions
