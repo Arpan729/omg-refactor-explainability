@@ -1,0 +1,45 @@
+paths:
+  train_videos_dir: raw_data/training/video
+  val_videos_dir: raw_data/validation/video
+  train_ann_dir: raw_data/training/annotation
+  val_ann_dir: raw_data/validation/annotation
+  train_faces_dir: raw_face/artifacts/faces/train
+  val_faces_dir: raw_face/artifacts/faces/val
+  feature_dir: raw_face/artifacts/features
+  checkpoint_dir: raw_face/artifacts/checkpoints
+  prediction_dir: raw_face/artifacts/predictions
+
+split:
+  manifest_id: raw_face_v1
+  subjects_train: [1,2,3,4,5,6,7,8,9,10]
+  subjects_val: [1,2,3,4,5,6,7,8,9,10]
+  stories_train: [1,4,5,8]
+  stories_val: [2]
+
+audio:
+  fps: 25.0
+
+extract:
+  detector_upsample: 1
+  image_ext: ".png"
+  face_size: 48
+
+model:
+  seq_len: 10
+  conv_channels: [32, 64]
+  dense_dim: 128
+  subject_embed_dim: 3
+  dropout: 0.6
+
+train:
+  epochs: 50
+  batch_size: 128
+  lr: 0.0001
+  weight_decay: 0.0
+  patience: 5
+  seed: 42
+  device: auto
+
+predict:
+  batch_size: 256
+  device: auto

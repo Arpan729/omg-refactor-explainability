@@ -27,3 +27,8 @@ src/landmarks/artifacts/checkpoints
 src/landmarks/artifacts/features/aligned
 src/landmarks/artifacts/landmarks/val
 src/landmarks/artifacts/predictions
+src/landmarks/__pycache__
+src/raw_face/artifacts/faces/val
+src/raw_face/artifacts/features
+src/raw_face/artifacts/checkpoints
+src/raw_face/artifacts/predictions
