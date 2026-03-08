@@ -1,7 +1,5 @@
 ## landmarks
 
-A clean-slate PyTorch landmarks pipeline isolated from legacy TensorFlow scripts.
-
 ### Run
 ```bash
 uv run python landmarks/extract_landmarks.py --config landmarks/config.yaml

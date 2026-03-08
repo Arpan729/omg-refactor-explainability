@@ -1,0 +1,19 @@
+{
+  "generated_at_utc": "2026-03-08T01:21:33Z",
+  "num_prediction_files": 10,
+  "num_samples_evaluated": 10,
+  "num_samples_skipped": 0,
+  "overall_ccc": -0.0382468400635735,
+  "mean_sample_ccc": 0.030345275232583718,
+  "median_sample_ccc": -0.00782449241000962,
+  "best_sample": {
+    "subject_id": 7,
+    "story_id": 2,
+    "ccc": 0.21793790207889133
+  },
+  "worst_sample": {
+    "subject_id": 10,
+    "story_id": 2,
+    "ccc": -0.06382397482352778
+  }
+}

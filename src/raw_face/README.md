@@ -1,7 +1,5 @@
 ## raw_face
 
-A clean-slate PyTorch raw-face pipeline with modality-owned face artifacts.
-
 ### Run
 ```bash
 uv run python raw_face/extract_faces.py --config raw_face/config.yaml

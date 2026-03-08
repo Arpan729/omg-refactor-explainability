@@ -1,12 +1,5 @@
 ## speech
 
-A clean-slate PyTorch speech pipeline isolated from legacy TensorFlow scripts.
-
-### Principles
-1. No dependency on `configs/defaults.yaml` or legacy speech scripts.
-2. Single source of truth: `speech/config.yaml`.
-3. Three commands only.
-
 ### Run
 ```bash
 uv run python speech/preprocess.py --config speech/config.yaml

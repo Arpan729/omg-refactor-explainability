@@ -32,3 +32,9 @@ src/raw_face/artifacts/faces/val
 src/raw_face/artifacts/features
 src/raw_face/artifacts/checkpoints
 src/raw_face/artifacts/predictions
+src/fullbody/__pycache__
+src/fullbody/artifacts/checkpoints
+src/fullbody/artifacts/features
+src/fullbody/artifacts/fullbody/val
+src/fullbody/artifacts/predictions
+src/fullbody/tests/__pycache__

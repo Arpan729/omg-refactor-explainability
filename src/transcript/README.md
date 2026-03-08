@@ -1,12 +1,5 @@
 ## transcript
 
-A clean-slate transcript pipeline isolated from legacy repo configs.
-
-### Principles
-1. No dependency on `configs/defaults.yaml` or old split manifests.
-2. Single source of truth: `transcript/config.yaml`.
-3. Three commands only.
-
 ### Run
 ```bash
 uv run python transcript/preprocess.py --config transcript/config.yaml
