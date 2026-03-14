@@ -1,0 +1,50 @@
+paths:
+  train_ann_dir: raw_data/training/annotation
+  val_ann_dir: raw_data/validation/annotation
+  prediction_dir: late_fusion/artifacts/predictions
+
+split:
+  manifest_id: late_fusion_v1
+  subjects_train: [1,2,3,4,5,6,7,8,9,10]
+  subjects_val: [1,2,3,4,5,6,7,8,9,10]
+  stories_train: [1,4,5,8]
+  stories_val: [2]
+
+fusion:
+  fps: 25.0
+  final_cutoff: 0.01
+  final_order: 1
+  modalities:
+    speech:
+      prediction_dir: speech/artifacts/predictions
+      kind: frame
+      weight: 1.0
+      cutoff: 0.004
+      order: 1
+    raw_face:
+      prediction_dir: raw_face/artifacts/predictions
+      kind: frame
+      weight: 0.1
+      cutoff: 0.006
+      order: 1
+    transcript:
+      prediction_dir: transcript/artifacts/predictions
+      kind: window
+      weight: 1.0
+      cutoff: 0.01
+      order: 1
+    landmarks:
+      prediction_dir: landmarks/artifacts/predictions
+      kind: frame
+      weight: 0.4
+      cutoff: 0.004
+      order: 1
+    fullbody:
+      prediction_dir: fullbody/artifacts/predictions
+      kind: frame
+      weight: 1.0
+      cutoff: 0.004
+      order: 1
+
+predict:
+  device: auto
