@@ -41,3 +41,5 @@ src/fullbody/tests/__pycache__
 src/late_fusion/__pycache__
 src/late_fusion/tests/__pycache__
 src/late_fusion/artifacts/predictions
+src/models
+src/models.zip
