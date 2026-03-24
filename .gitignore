@@ -36,6 +36,7 @@ src/fullbody/__pycache__
 src/fullbody/artifacts/checkpoints
 src/fullbody/artifacts/features
 src/fullbody/artifacts/fullbody/val
+src/fullbody/artifacts/fullbody/train
 src/fullbody/artifacts/predictions
 src/fullbody/tests/__pycache__
 src/late_fusion/__pycache__
