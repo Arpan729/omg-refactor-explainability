@@ -9,6 +9,19 @@ uv run python landmarks/predict.py --config landmarks/config.yaml
 uv run python landmarks/evaluate_predictions.py --config landmarks/config.yaml --output-dir landmarks/artifacts/model_evaluation
 ```
 
+### Out-of-fold predictions (stacking / meta-learner)
+Trains one model per held-out training story and writes OOF predictions.
+
+```bash
+uv run python landmarks/generate_oof.py --config landmarks/config.yaml
+```
+
+Outputs:
+- `checkpoint_dir/landmarks_conv1d_holdout_{story}.pt` for each training story
+- `prediction_dir/oof/Subject_*_Story_*.parquet` and `prediction_dir/oof/combined_oof.parquet`
+
+Run from the `src` directory (same as other landmarks commands).
+
 ### Input
 Landmark CSV files from:
 1. `paths.train_landmarks_csv_dir`

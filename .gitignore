@@ -44,3 +44,4 @@ src/late_fusion/artifacts/predictions
 src/late_fusion/tests/__pycache__
 src/models
 src/models.zip
+src/landmarks/tests/__pycache__
