@@ -7,6 +7,19 @@ uv run python transcript/train.py --config transcript/config.yaml
 uv run python transcript/predict.py --config transcript/config.yaml
 ```
 
+### Out-of-fold predictions (stacking / meta-learner)
+Trains one model per held-out training story and writes OOF predictions (no subprocess overhead).
+
+```bash
+uv run python transcript/generate_oof.py --config transcript/config.yaml
+```
+
+Outputs:
+- `checkpoint_dir/transcript_lstm_holdout_{story}.pt` for each training story
+- `prediction_dir/oof/Subject_*_Story_*.parquet` and `prediction_dir/oof/combined_oof.parquet`
+
+Run from the `src` directory (same as other transcript commands).
+
 ### Tests
 ```bash
 uv run -m unittest discover -s transcript/tests -p "test_*.py"
