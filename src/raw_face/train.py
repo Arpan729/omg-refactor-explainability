@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import argparse
+import copy
+import math
+from pathlib import Path
 
 import numpy as np
 
@@ -41,16 +44,23 @@ def evaluate(model, loader, device, target_min: float, target_max: float):
     return ccc_numpy(y_true, y_pred)
 
 
-def main():
+def train_model(
+    cfg: dict,
+    train_stories: list[int],
+    val_stories: list[int],
+    ckpt_path: Path,
+    device_flag: str | None = None,
+) -> float:
+    """Train raw_face model on specified stories. Returns best validation CCC."""
     import torch
     from torch.utils.data import DataLoader
 
-    args = parse_args()
-    cfg = load_config(args.config)
-    set_seed(int(cfg["train"]["seed"]))
+    cfg = copy.deepcopy(cfg)
+    cfg["split"]["stories_train"] = list(train_stories)
+    cfg["split"]["stories_val"] = list(val_stories)
 
     train_cfg = cfg["train"]
-    device = choose_device(str(train_cfg["device"]))
+    device = choose_device(str(device_flag or train_cfg["device"]))
     print(f"Using device: {device}")
 
     train_ds = RawFaceWindowDataset(cfg, split="train")
@@ -76,7 +86,7 @@ def main():
     best_ccc = float("-inf")
     no_improve = 0
     patience = int(train_cfg["patience"])
-    ckpt = checkpoint_path(cfg)
+    ckpt_path = Path(ckpt_path)
 
     for epoch in range(1, int(train_cfg["epochs"]) + 1):
         model.train()
@@ -97,7 +107,7 @@ def main():
         val_ccc = evaluate(model, val_loader, device, train_ds.target_min, train_ds.target_max)
         print(f"Epoch {epoch:03d} | train_loss={train_loss:.6f} | val_ccc={val_ccc:.6f}")
 
-        if val_ccc > best_ccc:
+        if val_ccc > best_ccc or (math.isnan(best_ccc) and not math.isnan(val_ccc)):
             best_ccc = val_ccc
             no_improve = 0
             torch.save(
@@ -106,14 +116,32 @@ def main():
                     "target_min": train_ds.target_min,
                     "target_max": train_ds.target_max,
                 },
-                ckpt,
+                ckpt_path,
             )
-            print(f"Saved checkpoint: {ckpt}")
+            print(f"Saved checkpoint: {ckpt_path}")
         else:
             no_improve += 1
             if no_improve >= patience:
                 print("Early stopping.")
                 break
+
+    del model
+    del optim
+    del train_loader
+    del val_loader
+    return best_ccc
+
+
+def main():
+    args = parse_args()
+    cfg = load_config(args.config)
+    set_seed(int(cfg["train"]["seed"]))
+    train_model(
+        cfg,
+        list(cfg["split"]["stories_train"]),
+        list(cfg["split"]["stories_val"]),
+        checkpoint_path(cfg),
+    )
 
 
 if __name__ == "__main__":
