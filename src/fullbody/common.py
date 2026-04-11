@@ -158,6 +158,17 @@ def iter_samples(cfg: dict[str, Any], split: str) -> list[SampleIndex]:
     return [SampleIndex(subject=s, story=t, split=split) for s in subjects for t in stories]
 
 
+def iter_samples_for_stories(cfg: dict[str, Any], split: str, stories: list[int]) -> list[SampleIndex]:
+    """Iterate subject×story combinations for an explicit story list (e.g. OOF holdout prediction)."""
+    if split == "train":
+        subjects = cfg["split"]["subjects_train"]
+    elif split == "val":
+        subjects = cfg["split"]["subjects_val"]
+    else:
+        raise ValueError(f"Invalid split: {split}")
+    return [SampleIndex(subject=s, story=t, split=split) for s in subjects for t in stories]
+
+
 def video_path(cfg: dict[str, Any], sample: SampleIndex) -> Path:
     base = cfg["paths"]["train_videos_dir"] if sample.split == "train" else cfg["paths"]["val_videos_dir"]
     return Path(base) / f"Subject_{sample.subject}_Story_{sample.story}.mp4"
@@ -527,8 +538,9 @@ def write_prediction_parquet(
     sample: SampleIndex,
     y_pred: np.ndarray,
     frame_idx: np.ndarray | None = None,
+    output_dir: str | Path | None = None,
 ) -> Path:
-    out_dir = Path(cfg["paths"]["prediction_dir"])
+    out_dir = Path(output_dir) if output_dir is not None else Path(cfg["paths"]["prediction_dir"])
     out_dir.mkdir(parents=True, exist_ok=True)
 
     if frame_idx is None:
