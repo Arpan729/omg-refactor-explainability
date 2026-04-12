@@ -1,0 +1,52 @@
+paths:
+  train_ann_dir: raw_data/training/annotation
+  val_ann_dir: raw_data/validation/annotation
+  checkpoint_dir: ensemble_fusion/artifacts/checkpoints
+  prediction_dir: ensemble_fusion/artifacts/predictions
+
+split:
+  manifest_id: ensemble_fusion_v1
+  subjects_train: [1,2,3,4,5,6,7,8,9,10]
+  subjects_val: [1,2,3,4,5,6,7,8,9,10]
+  stories_train: [1,4,5,8]
+  stories_val: [2]
+
+fusion:
+  fps: 25.0
+  modalities:
+    speech:
+      prediction_dir: speech/artifacts/predictions
+      oof_dir: speech/artifacts/predictions/oof
+      kind: frame
+    raw_face:
+      prediction_dir: raw_face/artifacts/predictions
+      oof_dir: raw_face/artifacts/predictions/oof
+      kind: frame
+    transcript:
+      prediction_dir: transcript/artifacts/predictions
+      oof_dir: transcript/artifacts/predictions/oof
+      kind: window
+    landmarks:
+      prediction_dir: landmarks/artifacts/predictions
+      oof_dir: landmarks/artifacts/predictions/oof
+      kind: frame
+    fullbody:
+      prediction_dir: fullbody/artifacts/predictions
+      oof_dir: fullbody/artifacts/predictions/oof
+      kind: frame
+
+model:
+  positive: true
+
+train:
+  epochs: 400
+  batch_size: 8192
+  lr: 0.01
+  alpha: 0.001
+  l1_ratio: 0.5
+  seed: 42
+  device: auto
+  checkpoint_name: nonnegative_elastic_net.pt
+
+predict:
+  device: auto

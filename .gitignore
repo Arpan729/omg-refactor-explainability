@@ -40,3 +40,4 @@ src/late_fusion/tests/__pycache__
 src/models
 src/models.zip
 src/landmarks/tests/__pycache__
+src/ensemble_fusion/artifacts/checkpoints
