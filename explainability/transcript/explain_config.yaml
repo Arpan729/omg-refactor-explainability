@@ -1,0 +1,35 @@
+paths:
+  srt_dir: D:\Final_Project\S3 Project\OmgEmapathyPlus-master\Annotations\Transcriptions
+  train_ann_dir: D:\Final_Project\S3 Project\Training\Annotations
+  val_ann_dir: D:\Final_Project\S3 Project\Validation\Annotations
+  lexicon_dir: D:\Final_Project\S4 Project\omg-refactor\src\raw_data\transcript\lexicons
+  feature_dir: D:\Final_Project\S4 Project\omg-refactor\src\transcript\artifacts\features
+  checkpoint_dir: D:\Final_Project\S4 Project\omg-refactor\src\transcript\artifacts\checkpoints
+  prediction_dir: D:\Final_Project\S4 Project\omg-refactor\src\transcript\artifacts\predictions
+
+split:
+  manifest_id: transcript_v1
+  subjects_train: [1,2,3,4,5,6,7,8,9,10]
+  subjects_val: [1,2,3,4,5,6,7,8,9,10]
+  stories_train: [1,4,5,8]
+  stories_val: [2]
+
+model:
+  window_size: 100
+  stride: 50
+  embedding_size: 11
+  lstm_hidden_dim: 64
+  subject_embed_dim: 2
+  dense_hidden_dim: 32
+  dropout: 0.2
+
+train:
+  epochs: 20
+  batch_size: 256
+  lr: 0.0001
+  patience: 5
+  device: auto
+
+predict:
+  batch_size: 512
+  device: auto
