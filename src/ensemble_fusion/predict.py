@@ -28,13 +28,16 @@ def main():
 
     built = 0
     for sample in iter_samples(cfg, "val"):
-        y_pred, _ = predict_sample(cfg, sample, ckpt_path=ckpt_path)
-        out_path = write_prediction_parquet(cfg, sample, y_pred)
-        validate_prediction_parquet(out_path)
-        print(f"Wrote {out_path}")
+        y_pred_raw, y_pred_smoothed, _ = predict_sample(cfg, sample, ckpt_path=ckpt_path)
+        out_raw = write_prediction_parquet(cfg, sample, y_pred_raw, variant="raw")
+        out_smoothed = write_prediction_parquet(cfg, sample, y_pred_smoothed, variant="smoothed")
+        validate_prediction_parquet(out_raw)
+        validate_prediction_parquet(out_smoothed)
+        print(f"Wrote {out_raw}")
+        print(f"Wrote {out_smoothed}")
         built += 1
 
-    print(f"Done. Wrote {built} parquet files.")
+    print(f"Done. Wrote {built} raw and {built} smoothed parquet files.")
 
 
 if __name__ == "__main__":

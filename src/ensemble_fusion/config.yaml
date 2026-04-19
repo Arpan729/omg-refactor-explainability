@@ -2,7 +2,8 @@ paths:
   train_ann_dir: raw_data/training/annotation
   val_ann_dir: raw_data/validation/annotation
   checkpoint_dir: ensemble_fusion/artifacts/checkpoints
-  prediction_dir: ensemble_fusion/artifacts/predictions
+  prediction_dir_raw: ensemble_fusion/artifacts/predictions_raw
+  prediction_dir_smoothed: ensemble_fusion/artifacts/predictions_smoothed
 
 split:
   manifest_id: ensemble_fusion_v1
@@ -13,27 +14,39 @@ split:
 
 fusion:
   fps: 25.0
+  final_cutoff: 0.01
+  final_order: 1
   modalities:
     speech:
       prediction_dir: speech/artifacts/predictions
       oof_dir: speech/artifacts/predictions/oof
       kind: frame
+      cutoff: 0.004
+      order: 1
     raw_face:
       prediction_dir: raw_face/artifacts/predictions
       oof_dir: raw_face/artifacts/predictions/oof
       kind: frame
+      cutoff: 0.006
+      order: 1
     transcript:
       prediction_dir: transcript/artifacts/predictions
       oof_dir: transcript/artifacts/predictions/oof
       kind: window
+      cutoff: 0.01
+      order: 1
     landmarks:
       prediction_dir: landmarks/artifacts/predictions
       oof_dir: landmarks/artifacts/predictions/oof
       kind: frame
+      cutoff: 0.004
+      order: 1
     fullbody:
       prediction_dir: fullbody/artifacts/predictions
       oof_dir: fullbody/artifacts/predictions/oof
       kind: frame
+      cutoff: 0.004
+      order: 1
 
 model:
   positive: true

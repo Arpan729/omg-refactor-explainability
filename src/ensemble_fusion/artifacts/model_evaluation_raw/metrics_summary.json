@@ -1,0 +1,10 @@
+{
+  "created_at_utc": "2026-04-19T14:46:51.981414+00:00",
+  "n_prediction_files": 10,
+  "n_samples_evaluated": 10,
+  "n_samples_skipped": 0,
+  "overall_ccc": 0.13781216034312785,
+  "overall_mae": 0.3448743390656782,
+  "overall_rmse": 0.4461477016726867,
+  "mean_sample_ccc": 0.0939093951952544
+}

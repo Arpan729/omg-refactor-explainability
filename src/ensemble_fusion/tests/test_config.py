@@ -20,7 +20,8 @@ paths:
   train_ann_dir: train_ann
   val_ann_dir: val_ann
   checkpoint_dir: out/checkpoints
-  prediction_dir: out/predictions
+  prediction_dir_raw: out/predictions_raw
+  prediction_dir_smoothed: out/predictions_smoothed
 split:
   manifest_id: test
   subjects_train: [1]
@@ -29,11 +30,15 @@ split:
   stories_val: [2]
 fusion:
   fps: 25.0
+  final_cutoff: 0.01
+  final_order: 1
   modalities:
     speech:
       prediction_dir: speech_pred
       oof_dir: speech_oof
       kind: frame
+      cutoff: 0.004
+      order: 1
 model:
   positive: true
   fit_intercept: true
@@ -54,6 +59,8 @@ predict:
                 cfg = load_config(str(cfg_path))
                 self.assertIn("paths", cfg)
                 self.assertIn("fusion", cfg)
+                self.assertIn("prediction_dir_raw", cfg["paths"])
+                self.assertIn("prediction_dir_smoothed", cfg["paths"])
             finally:
                 os.chdir(old)
 

@@ -5,18 +5,33 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from ensemble_fusion.common import SampleIndex, build_feature_frame, ccc_numpy, predict_sample, train_model
+from ensemble_fusion.common import (
+    SampleIndex,
+    build_feature_frame,
+    butter_lowpass_filter_bidirectional,
+    ccc_numpy,
+    predict_sample,
+    train_model,
+    write_prediction_parquet,
+)
 
 
 class TestModel(unittest.TestCase):
+    def test_bidirectional_smoothing_preserves_shape(self):
+        series = np.array([0.0, 1.0, 0.0, 1.0, 0.0], dtype=np.float32)
+        smoothed = butter_lowpass_filter_bidirectional(series, cutoff=0.5, fs=25.0, order=1)
+        self.assertEqual(smoothed.shape, series.shape)
+        self.assertTrue(np.all(np.isfinite(smoothed)))
+
     def test_train_and_predict_end_to_end(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             train_ann = root / "train_ann"
             val_ann = root / "val_ann"
             ckpt_dir = root / "checkpoints"
-            pred_out = root / "predictions"
-            for path in [train_ann, val_ann, ckpt_dir, pred_out]:
+            pred_out_raw = root / "predictions_raw"
+            pred_out_smoothed = root / "predictions_smoothed"
+            for path in [train_ann, val_ann, ckpt_dir, pred_out_raw, pred_out_smoothed]:
                 path.mkdir(parents=True, exist_ok=True)
 
             mod_names = ["speech", "transcript", "landmarks", "raw_face", "fullbody"]
@@ -90,7 +105,8 @@ class TestModel(unittest.TestCase):
                     "train_ann_dir": str(train_ann),
                     "val_ann_dir": str(val_ann),
                     "checkpoint_dir": str(ckpt_dir),
-                    "prediction_dir": str(pred_out),
+                    "prediction_dir_raw": str(pred_out_raw),
+                    "prediction_dir_smoothed": str(pred_out_smoothed),
                 },
                 "split": {
                     "manifest_id": "ensemble_fusion_test_v1",
@@ -101,12 +117,14 @@ class TestModel(unittest.TestCase):
                 },
                 "fusion": {
                     "fps": 25.0,
+                    "final_cutoff": 0.5,
+                    "final_order": 1,
                     "modalities": {
-                        "speech": {"prediction_dir": str(pred_dirs["speech"]), "oof_dir": str(oof_dirs["speech"]), "kind": "frame"},
-                        "transcript": {"prediction_dir": str(pred_dirs["transcript"]), "oof_dir": str(oof_dirs["transcript"]), "kind": "window"},
-                        "landmarks": {"prediction_dir": str(pred_dirs["landmarks"]), "oof_dir": str(oof_dirs["landmarks"]), "kind": "frame"},
-                        "raw_face": {"prediction_dir": str(pred_dirs["raw_face"]), "oof_dir": str(oof_dirs["raw_face"]), "kind": "frame"},
-                        "fullbody": {"prediction_dir": str(pred_dirs["fullbody"]), "oof_dir": str(oof_dirs["fullbody"]), "kind": "frame"},
+                        "speech": {"prediction_dir": str(pred_dirs["speech"]), "oof_dir": str(oof_dirs["speech"]), "kind": "frame", "cutoff": 0.5, "order": 1},
+                        "transcript": {"prediction_dir": str(pred_dirs["transcript"]), "oof_dir": str(oof_dirs["transcript"]), "kind": "window", "cutoff": 0.5, "order": 1},
+                        "landmarks": {"prediction_dir": str(pred_dirs["landmarks"]), "oof_dir": str(oof_dirs["landmarks"]), "kind": "frame", "cutoff": 0.5, "order": 1},
+                        "raw_face": {"prediction_dir": str(pred_dirs["raw_face"]), "oof_dir": str(oof_dirs["raw_face"]), "kind": "frame", "cutoff": 0.5, "order": 1},
+                        "fullbody": {"prediction_dir": str(pred_dirs["fullbody"]), "oof_dir": str(oof_dirs["fullbody"]), "kind": "frame", "cutoff": 0.5, "order": 1},
                     },
                 },
                 "model": {"positive": True, "fit_intercept": True, "max_iter": 10000},
@@ -127,10 +145,23 @@ class TestModel(unittest.TestCase):
             self.assertTrue(ckpt_path.exists())
             self.assertGreater(metrics["train_ccc"], 0.8)
 
-            y_pred, _ = predict_sample(cfg, SampleIndex(subject=1, story=2, split="val"), ckpt_path)
-            self.assertEqual(y_pred.shape, (4,))
-            self.assertTrue(np.all(np.isfinite(y_pred)))
-            self.assertGreater(ccc_numpy(y_val, y_pred), 0.8)
+            y_pred_raw, y_pred_smoothed, _ = predict_sample(cfg, SampleIndex(subject=1, story=2, split="val"), ckpt_path)
+            self.assertEqual(y_pred_raw.shape, (4,))
+            self.assertEqual(y_pred_smoothed.shape, (4,))
+            self.assertTrue(np.all(np.isfinite(y_pred_raw)))
+            self.assertTrue(np.all(np.isfinite(y_pred_smoothed)))
+            self.assertGreater(ccc_numpy(y_val, y_pred_raw), 0.8)
+
+            raw_path = write_prediction_parquet(cfg, SampleIndex(subject=1, story=2, split="val"), y_pred_raw, variant="raw")
+            smoothed_path = write_prediction_parquet(
+                cfg,
+                SampleIndex(subject=1, story=2, split="val"),
+                y_pred_smoothed,
+                variant="smoothed",
+            )
+            self.assertTrue(raw_path.exists())
+            self.assertTrue(smoothed_path.exists())
+            self.assertFalse(np.allclose(y_pred_raw, y_pred_smoothed))
 
 
 if __name__ == "__main__":

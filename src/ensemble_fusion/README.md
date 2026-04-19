@@ -4,7 +4,8 @@
 ```bash
 uv run python ensemble_fusion/train.py --config ensemble_fusion/config.yaml
 uv run python ensemble_fusion/predict.py --config ensemble_fusion/config.yaml
-uv run python ensemble_fusion/evaluate_predictions.py --config ensemble_fusion/config.yaml --output-dir ensemble_fusion/artifacts/model_evaluation --overwrite
+uv run python ensemble_fusion/evaluate_predictions.py --config ensemble_fusion/config.yaml --variant raw --output-dir ensemble_fusion/artifacts/model_evaluation_raw --overwrite
+uv run python ensemble_fusion/evaluate_predictions.py --config ensemble_fusion/config.yaml --variant smoothed --output-dir ensemble_fusion/artifacts/model_evaluation_smoothed --overwrite
 ```
 
 ### Model
@@ -17,7 +18,7 @@ This package trains a simple stacking meta-learner over the five modality predic
 - raw_face
 - fullbody
 
-The current implementation uses raw aligned modality predictions only and fits `scikit-learn` `ElasticNet(positive=True)`.
+The current implementation smooths each modality stream before stacking, fits `scikit-learn` `ElasticNet(positive=True)`, and writes both raw and final-smoothed ensemble outputs for comparison.
 
 ### Inputs
 
@@ -27,5 +28,6 @@ The current implementation uses raw aligned modality predictions only and fits `
 ### Outputs
 
 1. Checkpoint: `ensemble_fusion/artifacts/checkpoints/elastic_net_positive.pkl`
-2. Predictions parquet: `ensemble_fusion/artifacts/predictions/Subject_{s}_Story_{t}.parquet`
-3. Evaluation reports: `ensemble_fusion/artifacts/model_evaluation/*`
+2. Raw predictions parquet: `ensemble_fusion/artifacts/predictions_raw/Subject_{s}_Story_{t}.parquet`
+3. Smoothed predictions parquet: `ensemble_fusion/artifacts/predictions_smoothed/Subject_{s}_Story_{t}.parquet`
+4. Evaluation reports: `ensemble_fusion/artifacts/model_evaluation_{raw|smoothed}/*`

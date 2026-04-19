@@ -7,6 +7,7 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
+from scipy.signal import butter, lfilter
 from sklearn.linear_model import ElasticNet
 import torch
 import torch.nn.functional as F
@@ -14,7 +15,7 @@ import yaml
 
 
 REQUIRED_TOP_LEVEL_KEYS = ["paths", "split", "fusion", "train", "predict", "model"]
-REQUIRED_PATH_KEYS = ["train_ann_dir", "val_ann_dir", "checkpoint_dir", "prediction_dir"]
+REQUIRED_PATH_KEYS = ["train_ann_dir", "val_ann_dir", "checkpoint_dir", "prediction_dir_raw", "prediction_dir_smoothed"]
 PREDICTION_COLUMNS = ["frame_idx", "timestamp_s", "y_pred", "subject_id", "story_id", "split", "manifest_id"]
 FRAME_MODALITY_COLUMNS = ["frame_idx", "y_pred", "subject_id", "story_id"]
 WINDOW_MODALITY_COLUMNS = ["window_idx", "window_start_frame", "window_end_frame", "y_pred", "subject_id", "story_id"]
@@ -33,6 +34,8 @@ class ModalityConfig:
     prediction_dir: Path
     oof_dir: Path
     kind: str
+    cutoff: float
+    order: int
 
 
 def load_config(config_path: str | Path) -> dict[str, Any]:
@@ -97,7 +100,8 @@ def _validate_dirs(cfg: dict[str, Any]) -> None:
 
 def _ensure_output_dirs(cfg: dict[str, Any]) -> None:
     Path(cfg["paths"]["checkpoint_dir"]).mkdir(parents=True, exist_ok=True)
-    Path(cfg["paths"]["prediction_dir"]).mkdir(parents=True, exist_ok=True)
+    Path(cfg["paths"]["prediction_dir_raw"]).mkdir(parents=True, exist_ok=True)
+    Path(cfg["paths"]["prediction_dir_smoothed"]).mkdir(parents=True, exist_ok=True)
 
 
 def _validate_split(cfg: dict[str, Any]) -> None:
@@ -174,6 +178,8 @@ def modality_configs(cfg: dict[str, Any]) -> list[ModalityConfig]:
                 prediction_dir=Path(str(item["prediction_dir"])),
                 oof_dir=Path(str(item["oof_dir"])),
                 kind=str(item.get("kind", "frame")),
+                cutoff=float(item.get("cutoff", 0.0)),
+                order=int(item.get("order", 1)),
             )
         )
     return out
@@ -185,6 +191,14 @@ def checkpoint_path(cfg: dict[str, Any]) -> Path:
 
 def _prediction_file(base_dir: Path, sample: SampleIndex) -> Path:
     return base_dir / f"Subject_{sample.subject}_Story_{sample.story}.parquet"
+
+
+def prediction_dir_for_variant(cfg: dict[str, Any], variant: str) -> Path:
+    if variant == "raw":
+        return Path(cfg["paths"]["prediction_dir_raw"])
+    if variant == "smoothed":
+        return Path(cfg["paths"]["prediction_dir_smoothed"])
+    raise ValueError(f"Unsupported prediction variant: {variant}")
 
 
 def _validate_frame_prediction_df(df: pd.DataFrame) -> None:
@@ -203,6 +217,31 @@ def _validate_window_prediction_df(df: pd.DataFrame) -> None:
     window_idx = pd.Index(df["window_idx"].to_numpy(dtype=np.int64))
     if window_idx.duplicated().any() or not window_idx.is_monotonic_increasing:
         raise ValueError("Invalid window_idx: duplicates or not monotonic increasing")
+
+
+def butter_lowpass(cutoff: float, fs: float, order: int = 1) -> tuple[np.ndarray, np.ndarray]:
+    nyq = 0.5 * fs
+    if cutoff <= 0.0 or cutoff >= nyq:
+        raise ValueError(f"Cutoff must be between 0 and Nyquist {nyq}, got {cutoff}")
+    normal_cutoff = cutoff / nyq
+    return butter(order, normal_cutoff, btype="low", analog=False)
+
+
+def butter_lowpass_filter(data: np.ndarray, cutoff: float, fs: float, order: int = 1) -> np.ndarray:
+    if len(data) == 0 or cutoff <= 0.0:
+        return np.asarray(data, dtype=np.float32)
+    b, a = butter_lowpass(cutoff, fs=fs, order=order)
+    filtered = lfilter(b, a, np.asarray(data, dtype=np.float64))
+    return filtered.astype(np.float32)
+
+
+def butter_lowpass_filter_bidirectional(data: np.ndarray, cutoff: float, fs: float, order: int = 1) -> np.ndarray:
+    x = np.asarray(data, dtype=np.float32).reshape(-1)
+    if x.size == 0 or cutoff <= 0.0:
+        return x.copy()
+    first = butter_lowpass_filter(x[::-1], cutoff=cutoff, fs=fs, order=order)
+    second = butter_lowpass_filter(first[::-1], cutoff=cutoff, fs=fs, order=order)
+    return second.astype(np.float32)
 
 
 def align_series_to_length(values: np.ndarray, target_len: int) -> np.ndarray:
@@ -271,12 +310,14 @@ def read_modality_prediction(modality: ModalityConfig, sample: SampleIndex, targ
 def build_feature_frame(cfg: dict[str, Any], sample: SampleIndex, source: str) -> tuple[np.ndarray, np.ndarray, list[str]]:
     y_true = read_labels(cfg, sample)
     target_len = len(y_true)
+    fps = float(cfg["fusion"].get("fps", 25.0))
     features: list[np.ndarray] = []
     names: list[str] = []
     for modality in modality_configs(cfg):
         preds = read_modality_prediction(modality, sample, target_len=target_len, source=source)
         if len(preds) != target_len:
             raise ValueError(f"Aligned prediction length mismatch for {modality.name}: {len(preds)} vs {target_len}")
+        preds = butter_lowpass_filter_bidirectional(preds, cutoff=modality.cutoff, fs=fps, order=modality.order)
         features.append(preds.astype(np.float32))
         names.append(modality.name)
     x = np.stack(features, axis=1) if features else np.zeros((target_len, 0), dtype=np.float32)
@@ -340,7 +381,9 @@ def train_model(cfg: dict[str, Any], checkpoint_out: Path | None = None) -> tupl
     return ckpt_path, metrics
 
 
-def predict_sample(cfg: dict[str, Any], sample: SampleIndex, ckpt_path: Path) -> tuple[np.ndarray, dict[str, np.ndarray]]:
+def predict_sample(
+    cfg: dict[str, Any], sample: SampleIndex, ckpt_path: Path
+) -> tuple[np.ndarray, np.ndarray, dict[str, np.ndarray]]:
     with ckpt_path.open("rb") as f:
         saved = pickle.load(f)
     model: ElasticNet = saved["model"]
@@ -348,13 +391,19 @@ def predict_sample(cfg: dict[str, Any], sample: SampleIndex, ckpt_path: Path) ->
     x_np, _, feature_names = build_feature_frame(cfg, sample, source="prediction")
     if list(feature_names) != list(saved["feature_names"]):
         raise ValueError("Feature order mismatch between config and checkpoint")
-    y_pred = model.predict(x_np).astype(np.float32)
+    y_pred_raw = model.predict(x_np).astype(np.float32)
+    y_pred_smoothed = butter_lowpass_filter_bidirectional(
+        y_pred_raw,
+        cutoff=float(cfg["fusion"].get("final_cutoff", 0.0)),
+        fs=float(cfg["fusion"].get("fps", 25.0)),
+        order=int(cfg["fusion"].get("final_order", 1)),
+    )
     overlays = {name: x_np[:, idx].astype(np.float32) for idx, name in enumerate(feature_names)}
-    return y_pred, overlays
+    return y_pred_raw, y_pred_smoothed, overlays
 
 
-def write_prediction_parquet(cfg: dict[str, Any], sample: SampleIndex, y_pred: np.ndarray) -> Path:
-    out_dir = Path(cfg["paths"]["prediction_dir"])
+def write_prediction_parquet(cfg: dict[str, Any], sample: SampleIndex, y_pred: np.ndarray, variant: str) -> Path:
+    out_dir = prediction_dir_for_variant(cfg, variant)
     out_dir.mkdir(parents=True, exist_ok=True)
     fps = float(cfg["fusion"].get("fps", 25.0))
     frame_idx = np.arange(len(y_pred), dtype=np.int32)

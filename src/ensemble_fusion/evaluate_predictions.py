@@ -14,9 +14,9 @@ import numpy as np
 import pandas as pd
 
 try:
-    from common import SampleIndex, ccc_numpy, checkpoint_path, load_config, predict_sample
+    from common import SampleIndex, ccc_numpy, checkpoint_path, load_config, predict_sample, prediction_dir_for_variant
 except ImportError:  # pragma: no cover
-    from ensemble_fusion.common import SampleIndex, ccc_numpy, checkpoint_path, load_config, predict_sample
+    from ensemble_fusion.common import SampleIndex, ccc_numpy, checkpoint_path, load_config, predict_sample, prediction_dir_for_variant
 
 
 PREDICTION_NAME_RE = re.compile(r"Subject_(\d+)_Story_(\d+)\.parquet$")
@@ -33,7 +33,8 @@ MODALITY_COLORS = {
 def parse_args():
     p = argparse.ArgumentParser(description="Evaluate ensemble-fusion prediction parquet files with CCC and plots.")
     p.add_argument("--config", type=str, default="ensemble_fusion/config.yaml")
-    p.add_argument("--output-dir", type=str, default="ensemble_fusion/artifacts/model_evaluation")
+    p.add_argument("--variant", type=str, choices=["raw", "smoothed"], required=True)
+    p.add_argument("--output-dir", type=str, default=None)
     p.add_argument("--max-plots", type=int, default=10)
     p.add_argument("--overwrite", action="store_true")
     return p.parse_args()
@@ -186,10 +187,12 @@ def _plot_timeseries(
     plt.close(fig)
 
 
-def run_evaluation(cfg: dict[str, Any], output_dir: Path, max_plots: int, overwrite: bool) -> tuple[pd.DataFrame, dict[str, Any]]:
+def run_evaluation(
+    cfg: dict[str, Any], output_dir: Path, max_plots: int, overwrite: bool, variant: str
+) -> tuple[pd.DataFrame, dict[str, Any]]:
     _prepare_output_dir(output_dir, overwrite=overwrite)
 
-    pred_dir = Path(cfg["paths"]["prediction_dir"])
+    pred_dir = prediction_dir_for_variant(cfg, variant)
     ann_dir = Path(cfg["paths"]["val_ann_dir"])
     ckpt_path = checkpoint_path(cfg)
     prediction_files = sorted(pred_dir.glob("*.parquet"))
@@ -249,7 +252,14 @@ def run_evaluation(cfg: dict[str, Any], output_dir: Path, max_plots: int, overwr
         full_pred.append(y_pred)
 
         if len(series_for_plot) < max_plots:
-            _, overlays = predict_sample(cfg, SampleIndex(subject=subject_id, story=story_id, split="val"), ckpt_path)
+            y_pred_raw, y_pred_smoothed, overlays = predict_sample(
+                cfg,
+                SampleIndex(subject=subject_id, story=story_id, split="val"),
+                ckpt_path,
+            )
+            expected = y_pred_raw if variant == "raw" else y_pred_smoothed
+            if len(expected) != len(y_true_full):
+                raise ValueError(f"Predicted length mismatch for plotting: {len(expected)} vs {len(y_true_full)}")
             overlay_clipped = {k: v[frame_idx] for k, v in overlays.items()}
             series_for_plot.append((subject_id, story_id, frame_idx, y_true, y_pred, overlay_clipped))
 
@@ -307,7 +317,14 @@ def run_evaluation(cfg: dict[str, Any], output_dir: Path, max_plots: int, overwr
 def main():
     args = parse_args()
     cfg = load_config(args.config)
-    metrics_df, summary = run_evaluation(cfg, Path(args.output_dir), max_plots=args.max_plots, overwrite=args.overwrite)
+    output_dir = Path(args.output_dir) if args.output_dir else Path(f"ensemble_fusion/artifacts/model_evaluation_{args.variant}")
+    metrics_df, summary = run_evaluation(
+        cfg,
+        output_dir,
+        max_plots=args.max_plots,
+        overwrite=args.overwrite,
+        variant=args.variant,
+    )
     print(metrics_df.to_string(index=False))
     print(json.dumps(summary, indent=2))
 
