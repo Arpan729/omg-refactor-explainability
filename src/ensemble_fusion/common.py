@@ -2,12 +2,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+import pickle
 from typing import Any
 
 import numpy as np
 import pandas as pd
+from sklearn.linear_model import ElasticNet
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
 import yaml
 
@@ -32,22 +33,6 @@ class ModalityConfig:
     prediction_dir: Path
     oof_dir: Path
     kind: str
-
-
-class NonNegativeElasticNet(nn.Module):
-    def __init__(self, n_features: int, positive: bool = True):
-        super().__init__()
-        self.theta = nn.Parameter(torch.zeros(n_features))
-        self.bias = nn.Parameter(torch.zeros(1))
-        self.positive = bool(positive)
-
-    def weights(self) -> torch.Tensor:
-        if self.positive:
-            return F.softplus(self.theta)
-        return self.theta
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return x @ self.weights() + self.bias
 
 
 def load_config(config_path: str | Path) -> dict[str, Any]:
@@ -195,7 +180,7 @@ def modality_configs(cfg: dict[str, Any]) -> list[ModalityConfig]:
 
 
 def checkpoint_path(cfg: dict[str, Any]) -> Path:
-    return Path(cfg["paths"]["checkpoint_dir"]) / str(cfg["train"].get("checkpoint_name", "nonnegative_elastic_net.pt"))
+    return Path(cfg["paths"]["checkpoint_dir"]) / str(cfg["train"].get("checkpoint_name", "elastic_net_positive.pkl"))
 
 
 def _prediction_file(base_dir: Path, sample: SampleIndex) -> Path:
@@ -315,52 +300,22 @@ def build_training_matrix(cfg: dict[str, Any]) -> tuple[np.ndarray, np.ndarray, 
     return np.concatenate(xs, axis=0), np.concatenate(ys, axis=0), feature_names
 
 
-def elastic_net_penalty(weights: torch.Tensor, alpha: float, l1_ratio: float) -> torch.Tensor:
-    l1 = weights.abs().sum()
-    l2 = (weights ** 2).sum()
-    return alpha * (l1_ratio * l1 + (1.0 - l1_ratio) * l2)
-
-
 def train_model(cfg: dict[str, Any], checkpoint_out: Path | None = None) -> tuple[Path, dict[str, float]]:
     set_seed(int(cfg["train"]["seed"]))
-    device = choose_device(str(cfg["train"]["device"]))
     x_np, y_np, feature_names = build_training_matrix(cfg)
-
-    x = torch.tensor(x_np, dtype=torch.float32)
-    y = torch.tensor(y_np, dtype=torch.float32)
-    dataset = torch.utils.data.TensorDataset(x, y)
-    loader = torch.utils.data.DataLoader(
-        dataset,
-        batch_size=int(cfg["train"]["batch_size"]),
-        shuffle=True,
-    )
-
-    model = NonNegativeElasticNet(
-        n_features=x.shape[1],
+    model = ElasticNet(
+        alpha=float(cfg["train"]["alpha"]),
+        l1_ratio=float(cfg["train"]["l1_ratio"]),
         positive=bool(cfg["model"].get("positive", True)),
-    ).to(device)
-    optimizer = torch.optim.Adam(model.parameters(), lr=float(cfg["train"]["lr"]))
+        fit_intercept=bool(cfg["model"].get("fit_intercept", True)),
+        max_iter=int(cfg["model"].get("max_iter", 10000)),
+        random_state=int(cfg["train"]["seed"]),
+    )
+    model.fit(x_np, y_np)
 
-    epochs = int(cfg["train"]["epochs"])
-    alpha = float(cfg["train"]["alpha"])
-    l1_ratio = float(cfg["train"]["l1_ratio"])
-
-    model.train()
-    for _ in range(epochs):
-        for xb, yb in loader:
-            xb = xb.to(device)
-            yb = yb.to(device)
-            optimizer.zero_grad()
-            pred = model(xb)
-            loss = F.mse_loss(pred, yb) + elastic_net_penalty(model.weights(), alpha=alpha, l1_ratio=l1_ratio)
-            loss.backward()
-            optimizer.step()
-
-    model.eval()
-    with torch.no_grad():
-        train_pred = model(x.to(device)).cpu().numpy().astype(np.float32)
-        final_weights = model.weights().detach().cpu().numpy().astype(np.float32)
-        final_bias = float(model.bias.detach().cpu().item())
+    train_pred = model.predict(x_np).astype(np.float32)
+    final_weights = np.asarray(model.coef_, dtype=np.float32)
+    final_bias = float(model.intercept_)
 
     metrics = {
         "train_ccc": float(ccc_numpy(y_np, train_pred)),
@@ -369,36 +324,31 @@ def train_model(cfg: dict[str, Any], checkpoint_out: Path | None = None) -> tupl
 
     ckpt_path = checkpoint_out or checkpoint_path(cfg)
     ckpt_path.parent.mkdir(parents=True, exist_ok=True)
-    torch.save(
-        {
-            "model_state": model.state_dict(),
-            "feature_names": list(feature_names),
-            "positive": bool(cfg["model"].get("positive", True)),
-            "train_metrics": {k: float(v) for k, v in metrics.items()},
-            "weights": final_weights.tolist(),
-            "bias": final_bias,
-            "manifest_id": cfg["split"]["manifest_id"],
-        },
-        ckpt_path,
-    )
+    with ckpt_path.open("wb") as f:
+        pickle.dump(
+            {
+                "model": model,
+                "feature_names": list(feature_names),
+                "positive": bool(cfg["model"].get("positive", True)),
+                "train_metrics": {k: float(v) for k, v in metrics.items()},
+                "weights": final_weights.tolist(),
+                "bias": final_bias,
+                "manifest_id": cfg["split"]["manifest_id"],
+            },
+            f,
+        )
     return ckpt_path, metrics
 
 
 def predict_sample(cfg: dict[str, Any], sample: SampleIndex, ckpt_path: Path) -> tuple[np.ndarray, dict[str, np.ndarray]]:
-    device = choose_device(str(cfg["predict"]["device"]))
-    saved = torch.load(ckpt_path, map_location=device, weights_only=False)
-    model = NonNegativeElasticNet(
-        n_features=len(saved["feature_names"]),
-        positive=bool(saved.get("positive", True)),
-    ).to(device)
-    model.load_state_dict(saved["model_state"])
-    model.eval()
+    with ckpt_path.open("rb") as f:
+        saved = pickle.load(f)
+    model: ElasticNet = saved["model"]
 
     x_np, _, feature_names = build_feature_frame(cfg, sample, source="prediction")
     if list(feature_names) != list(saved["feature_names"]):
         raise ValueError("Feature order mismatch between config and checkpoint")
-    with torch.no_grad():
-        y_pred = model(torch.tensor(x_np, dtype=torch.float32).to(device)).cpu().numpy().astype(np.float32)
+    y_pred = model.predict(x_np).astype(np.float32)
     overlays = {name: x_np[:, idx].astype(np.float32) for idx, name in enumerate(feature_names)}
     return y_pred, overlays
 

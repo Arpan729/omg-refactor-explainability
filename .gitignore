@@ -41,3 +41,5 @@ src/models
 src/models.zip
 src/landmarks/tests/__pycache__
 src/ensemble_fusion/artifacts/checkpoints
+src/ensemble_fusion/__pycache__
+src/ensemble_fusion/tests/__pycache__

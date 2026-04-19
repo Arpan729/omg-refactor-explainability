@@ -17,7 +17,7 @@ This package trains a simple stacking meta-learner over the five modality predic
 - raw_face
 - fullbody
 
-The first version uses raw aligned modality predictions only and fits a nonnegative elastic-net linear combiner in PyTorch.
+The current implementation uses raw aligned modality predictions only and fits `scikit-learn` `ElasticNet(positive=True)`.
 
 ### Inputs
 
@@ -26,6 +26,6 @@ The first version uses raw aligned modality predictions only and fits a nonnegat
 
 ### Outputs
 
-1. Checkpoint: `ensemble_fusion/artifacts/checkpoints/nonnegative_elastic_net.pt`
+1. Checkpoint: `ensemble_fusion/artifacts/checkpoints/elastic_net_positive.pkl`
 2. Predictions parquet: `ensemble_fusion/artifacts/predictions/Subject_{s}_Story_{t}.parquet`
 3. Evaluation reports: `ensemble_fusion/artifacts/model_evaluation/*`
