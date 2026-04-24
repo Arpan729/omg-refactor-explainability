@@ -44,6 +44,13 @@ model:
   fit_intercept: true
   max_iter: 1000
 train:
+  mode: sweep
+  model_name: elastic_net_positive
+  selection_variant: raw
+  model_names: [ridge_positive, elastic_net_positive]
+  ridge_alpha_grid: [0.0, 0.001]
+  elastic_net_alpha_grid: [0.0001]
+  elastic_net_l1_ratio_grid: [0.1, 0.5]
   alpha: 0.001
   l1_ratio: 0.5
   seed: 42
@@ -61,6 +68,7 @@ predict:
                 self.assertIn("fusion", cfg)
                 self.assertIn("prediction_dir_raw", cfg["paths"])
                 self.assertIn("prediction_dir_smoothed", cfg["paths"])
+                self.assertEqual(cfg["train"]["mode"], "sweep")
             finally:
                 os.chdir(old)
 

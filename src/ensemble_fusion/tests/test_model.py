@@ -9,9 +9,14 @@ from ensemble_fusion.common import (
     SampleIndex,
     build_feature_frame,
     butter_lowpass_filter_bidirectional,
+    candidate_specs,
     ccc_numpy,
+    cv_fold_metrics_csv_path,
+    cv_story_folds,
+    make_estimator,
     predict_sample,
     train_model,
+    train_model_sweep,
     write_prediction_parquet,
 )
 
@@ -22,6 +27,16 @@ class TestModel(unittest.TestCase):
         smoothed = butter_lowpass_filter_bidirectional(series, cutoff=0.5, fs=25.0, order=1)
         self.assertEqual(smoothed.shape, series.shape)
         self.assertTrue(np.all(np.isfinite(smoothed)))
+
+    def test_estimator_factory_positive_models(self):
+        cfg = {
+            "model": {"fit_intercept": True, "max_iter": 1000},
+            "train": {"seed": 42, "alpha": 0.001, "l1_ratio": 0.5},
+        }
+        ridge = make_estimator(cfg, "ridge_positive", alpha=0.01)
+        elastic = make_estimator(cfg, "elastic_net_positive", alpha=0.01, l1_ratio=0.5)
+        self.assertTrue(ridge.positive)
+        self.assertTrue(elastic.positive)
 
     def test_train_and_predict_end_to_end(self):
         with tempfile.TemporaryDirectory() as td:
@@ -43,10 +58,16 @@ class TestModel(unittest.TestCase):
                 pred_dirs[name].mkdir(parents=True, exist_ok=True)
                 oof_dirs[name].mkdir(parents=True, exist_ok=True)
 
-            y_train = np.array([0.0, 0.2, 0.4, 0.6], dtype=np.float32)
             y_val = np.array([0.1, 0.3, 0.5, 0.7], dtype=np.float32)
-            pd.DataFrame({"valence": y_train}).to_csv(train_ann / "Subject_1_Story_1.csv", index=False)
             pd.DataFrame({"valence": y_val}).to_csv(val_ann / "Subject_1_Story_2.csv", index=False)
+            train_targets = {
+                1: np.array([0.0, 0.2, 0.4, 0.6], dtype=np.float32),
+                4: np.array([0.1, 0.3, 0.5, 0.7], dtype=np.float32),
+                5: np.array([-0.2, 0.0, 0.2, 0.4], dtype=np.float32),
+                8: np.array([0.3, 0.5, 0.7, 0.9], dtype=np.float32),
+            }
+            for story, y_train in train_targets.items():
+                pd.DataFrame({"valence": y_train}).to_csv(train_ann / f"Subject_1_Story_{story}.csv", index=False)
 
             frame_base = {
                 "frame_idx": [0, 1, 2, 3],
@@ -64,18 +85,6 @@ class TestModel(unittest.TestCase):
                 "split": ["val"] * 4,
                 "manifest_id": ["m"] * 4,
             }
-            transcript_train = pd.DataFrame(
-                {
-                    "window_idx": [0, 1],
-                    "window_start_frame": [0, 2],
-                    "window_end_frame": [1, 3],
-                    "y_pred": [0.1, 0.5],
-                    "subject_id": [1, 1],
-                    "story_id": [1, 1],
-                    "split": ["train", "train"],
-                    "manifest_id": ["m", "m"],
-                }
-            )
             transcript_val = pd.DataFrame(
                 {
                     "window_idx": [0, 1],
@@ -91,13 +100,33 @@ class TestModel(unittest.TestCase):
 
             for idx, name in enumerate(mod_names):
                 if name == "transcript":
-                    transcript_train.to_parquet(oof_dirs[name] / "Subject_1_Story_1.parquet", index=False)
+                    for story, y_train in train_targets.items():
+                        transcript_train = pd.DataFrame(
+                            {
+                                "window_idx": [0, 1],
+                                "window_start_frame": [0, 2],
+                                "window_end_frame": [1, 3],
+                                "y_pred": [float(y_train[:2].mean() + 0.01), float(y_train[2:].mean() + 0.01)],
+                                "subject_id": [1, 1],
+                                "story_id": [story, story],
+                                "split": ["train", "train"],
+                                "manifest_id": ["m", "m"],
+                            }
+                        )
+                        transcript_train.to_parquet(oof_dirs[name] / f"Subject_1_Story_{story}.parquet", index=False)
                     transcript_val.to_parquet(pred_dirs[name] / "Subject_1_Story_2.parquet", index=False)
                     continue
 
-                train_df = pd.DataFrame({**frame_base, "y_pred": (y_train + 0.01 * idx).tolist()})
+                for story, y_train in train_targets.items():
+                    train_df = pd.DataFrame(
+                        {
+                            **frame_base,
+                            "story_id": [story, story, story, story],
+                            "y_pred": (y_train + 0.01 * idx).tolist(),
+                        }
+                    )
+                    train_df.to_parquet(oof_dirs[name] / f"Subject_1_Story_{story}.parquet", index=False)
                 val_df = pd.DataFrame({**val_frame_base, "y_pred": (y_val + 0.01 * idx).tolist()})
-                train_df.to_parquet(oof_dirs[name] / "Subject_1_Story_1.parquet", index=False)
                 val_df.to_parquet(pred_dirs[name] / "Subject_1_Story_2.parquet", index=False)
 
             cfg = {
@@ -112,7 +141,7 @@ class TestModel(unittest.TestCase):
                     "manifest_id": "ensemble_fusion_test_v1",
                     "subjects_train": [1],
                     "subjects_val": [1],
-                    "stories_train": [1],
+                    "stories_train": [1, 4, 5, 8],
                     "stories_val": [2],
                 },
                 "fusion": {
@@ -129,6 +158,13 @@ class TestModel(unittest.TestCase):
                 },
                 "model": {"positive": True, "fit_intercept": True, "max_iter": 10000},
                 "train": {
+                    "mode": "single",
+                    "model_name": "elastic_net_positive",
+                    "selection_variant": "raw",
+                    "model_names": ["ridge_positive", "elastic_net_positive", "linear_regression"],
+                    "ridge_alpha_grid": [0.0, 0.01],
+                    "elastic_net_alpha_grid": [0.0001],
+                    "elastic_net_l1_ratio_grid": [0.5],
                     "alpha": 0.0001,
                     "l1_ratio": 0.5,
                     "seed": 42,
@@ -162,6 +198,24 @@ class TestModel(unittest.TestCase):
             self.assertTrue(raw_path.exists())
             self.assertTrue(smoothed_path.exists())
             self.assertFalse(np.allclose(y_pred_raw, y_pred_smoothed))
+
+            specs = candidate_specs(cfg)
+            self.assertEqual(len(specs), 4)
+            folds = cv_story_folds(cfg)
+            self.assertEqual(len(folds), 4)
+            self.assertEqual([fold["held_out_story"] for fold in folds], [1, 4, 5, 8])
+            self.assertTrue(all(sample.story != 2 for fold in folds for sample in fold["train_samples"]))
+            self.assertTrue(all(sample.story == fold["held_out_story"] for fold in folds for sample in fold["val_samples"]))
+
+            cfg["train"]["mode"] = "sweep"
+            sweep_ckpt, summary, summary_df = train_model_sweep(cfg)
+            self.assertTrue(sweep_ckpt.exists())
+            self.assertEqual(summary["selection_variant"], "raw")
+            self.assertEqual(summary["selection_protocol"], "leave_one_training_story_out_cv")
+            self.assertGreaterEqual(len(summary_df), 1)
+            self.assertIn("weight_speech", summary_df.columns)
+            self.assertIn("cv_raw_mean_ccc", summary_df.columns)
+            self.assertTrue(cv_fold_metrics_csv_path(cfg).exists())
 
 
 if __name__ == "__main__":
