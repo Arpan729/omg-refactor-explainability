@@ -37,7 +37,7 @@ model:
   num_layers: 1
   dropout: 0.3
   use_batch_norm: true
-  subject_embed_dim: 8
+  subject_embed_dim: 0
 
 train:
   epochs: 100
