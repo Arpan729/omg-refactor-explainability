@@ -61,8 +61,11 @@ def main():
         train_stories = [s for s in folds if s != holdout]
         ckpt_path = ckpt_dir / f"fullbody_resnet3d_holdout_{holdout}.pt"
 
-        best_ccc = train_model(oof_cfg, train_stories, [holdout], ckpt_path)
-        print(f"Holdout {holdout} best val CCC: {best_ccc:.6f}")
+        if ckpt_path.exists():
+            print(f"Holdout {holdout}: reusing existing checkpoint {ckpt_path.name}")
+        else:
+            best_ccc = train_model(oof_cfg, train_stories, [holdout], ckpt_path)
+            print(f"Holdout {holdout} best val CCC: {best_ccc:.6f}")
 
         predict_samples(
             oof_cfg,

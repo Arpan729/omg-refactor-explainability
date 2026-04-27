@@ -81,8 +81,11 @@ def predict_samples(
         preds = predict_frames(model, xw, batch_size, device)
         preds = denorm_target(preds, target_min, target_max)
 
+        down_sampling = int(cfg["model"]["down_sampling"])
+        frame_idx_full = (frame_idx * down_sampling).astype(np.int64)
+
         out_path = write_prediction_parquet(
-            cfg, sample, preds.astype(np.float32), frame_idx=frame_idx, output_dir=output_dir
+            cfg, sample, preds.astype(np.float32), frame_idx=frame_idx_full, output_dir=output_dir
         )
         validate_prediction_parquet(out_path)
         print(f"Wrote {out_path}")
