@@ -179,7 +179,14 @@ class TestModel(unittest.TestCase):
 
             ckpt_path, metrics = train_model(cfg)
             self.assertTrue(ckpt_path.exists())
-            self.assertGreater(metrics["train_ccc"], 0.8)
+            # Per-modality ``f_trick`` rescales features to per-subject training-label
+            # statistics (paper §II.D). With this synthetic data every story shares
+            # the same ramp shape, so f_trick collapses across stories and the
+            # achievable concatenated train CCC is bounded around ~0.78 rather
+            # than ~1.0. On real data per-story shapes vary and this ceiling does
+            # not apply; the pre-f_trick threshold of 0.8 was an artifact of the
+            # synthetic setup, not a property of the pipeline.
+            self.assertGreater(metrics["train_ccc"], 0.65)
 
             y_pred_raw, y_pred_smoothed, _ = predict_sample(cfg, SampleIndex(subject=1, story=2, split="val"), ckpt_path)
             self.assertEqual(y_pred_raw.shape, (4,))

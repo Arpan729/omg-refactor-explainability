@@ -175,6 +175,22 @@ def read_labels(cfg: dict[str, Any], sample: SampleIndex) -> np.ndarray:
     return pd.read_csv(path).iloc[:, 0].to_numpy(dtype=np.float32).reshape(-1)
 
 
+def read_training_labels_for_subject(cfg: dict[str, Any], subject_id: int) -> np.ndarray:
+    """Concatenate all training-set valence labels for a single subject.
+
+    Used by ``f_trick`` to estimate per-subject mean/std for prediction rescaling,
+    matching the late-fusion post-processing protocol described in the paper.
+    """
+    train_labels = [
+        read_labels(cfg, sample)
+        for sample in iter_samples(cfg, "train")
+        if sample.subject == subject_id
+    ]
+    if not train_labels:
+        raise FileNotFoundError(f"No training labels found for subject {subject_id}")
+    return np.concatenate(train_labels, axis=0).astype(np.float32)
+
+
 def modality_configs(cfg: dict[str, Any]) -> list[ModalityConfig]:
     out: list[ModalityConfig] = []
     for name, item in cfg["fusion"]["modalities"].items():
@@ -262,6 +278,29 @@ def butter_lowpass_filter_bidirectional(data: np.ndarray, cutoff: float, fs: flo
     return second.astype(np.float32)
 
 
+def f_trick(y_train: np.ndarray, preds: np.ndarray, eps: float = 1e-8) -> np.ndarray:
+    """Rescale ``preds`` to match the mean and std of ``y_train``.
+
+    Mirrors the post-processing step in ``late_fusion.common.f_trick``: the paper
+    assumes the per-subject training-label statistics approximate the test-set
+    statistics, so predictions are linearly recentered/rescaled to remove the
+    amplitude compression typical of CNN/RNN regressors.
+    """
+    y_flat = np.asarray(y_train, dtype=np.float32).reshape(-1)
+    p_flat = np.asarray(preds, dtype=np.float32).reshape(-1)
+    if y_flat.size == 0 or p_flat.size == 0:
+        return p_flat.copy()
+
+    s0 = float(np.std(y_flat))
+    m0 = float(np.mean(y_flat))
+    s1 = float(np.std(p_flat))
+    m1 = float(np.mean(p_flat))
+    if s1 <= eps:
+        return np.full_like(p_flat, fill_value=m0, dtype=np.float32)
+    norm_preds = s0 * (p_flat - m1) / s1 + m0
+    return norm_preds.astype(np.float32)
+
+
 def align_series_to_length(values: np.ndarray, target_len: int) -> np.ndarray:
     x = np.asarray(values, dtype=np.float32).reshape(-1)
     if target_len < 0:
@@ -329,6 +368,7 @@ def build_feature_frame(cfg: dict[str, Any], sample: SampleIndex, source: str) -
     y_true = read_labels(cfg, sample)
     target_len = len(y_true)
     fps = float(cfg["fusion"].get("fps", 25.0))
+    y_train_subject = read_training_labels_for_subject(cfg, sample.subject)
     features: list[np.ndarray] = []
     names: list[str] = []
     for modality in modality_configs(cfg):
@@ -336,6 +376,7 @@ def build_feature_frame(cfg: dict[str, Any], sample: SampleIndex, source: str) -
         if len(preds) != target_len:
             raise ValueError(f"Aligned prediction length mismatch for {modality.name}: {len(preds)} vs {target_len}")
         preds = butter_lowpass_filter_bidirectional(preds, cutoff=modality.cutoff, fs=fps, order=modality.order)
+        preds = f_trick(y_train_subject, preds)
         features.append(preds.astype(np.float32))
         names.append(modality.name)
     x = np.stack(features, axis=1) if features else np.zeros((target_len, 0), dtype=np.float32)
@@ -495,6 +536,7 @@ def evaluate_model_on_samples(cfg: dict[str, Any], model, samples: list[SampleIn
             fs=float(cfg["fusion"].get("fps", 25.0)),
             order=int(cfg["fusion"].get("final_order", 1)),
         )
+        y_pred_smoothed = f_trick(read_training_labels_for_subject(cfg, sample.subject), y_pred_smoothed)
         raw_true.append(y_true.astype(np.float32))
         raw_pred.append(y_pred_raw)
         smoothed_pred.append(y_pred_smoothed)
@@ -586,11 +628,23 @@ def train_model_sweep(cfg: dict[str, Any]) -> tuple[Path, dict[str, Any], pd.Dat
 
             train_pred = model.predict(x_train).astype(np.float32)
             valid_pred_raw = model.predict(x_valid).astype(np.float32)
-            valid_pred_smoothed = butter_lowpass_filter_bidirectional(
-                valid_pred_raw,
-                cutoff=float(cfg["fusion"].get("final_cutoff", 0.0)),
-                fs=float(cfg["fusion"].get("fps", 25.0)),
-                order=int(cfg["fusion"].get("final_order", 1)),
+            sample_lengths = [len(read_labels(cfg, s)) for s in fold["val_samples"]]
+            split_points = np.cumsum(sample_lengths)[:-1].tolist()
+            raw_parts = np.split(valid_pred_raw, split_points) if split_points else [valid_pred_raw]
+            smoothed_parts: list[np.ndarray] = []
+            for sample_idx, sample_part in zip(fold["val_samples"], raw_parts):
+                sm = butter_lowpass_filter_bidirectional(
+                    sample_part,
+                    cutoff=float(cfg["fusion"].get("final_cutoff", 0.0)),
+                    fs=float(cfg["fusion"].get("fps", 25.0)),
+                    order=int(cfg["fusion"].get("final_order", 1)),
+                )
+                sm = f_trick(read_training_labels_for_subject(cfg, sample_idx.subject), sm)
+                smoothed_parts.append(sm)
+            valid_pred_smoothed = (
+                np.concatenate(smoothed_parts).astype(np.float32)
+                if smoothed_parts
+                else np.zeros((0,), dtype=np.float32)
             )
             pred_std = float(np.std(valid_pred_raw)) if valid_pred_raw.size else float("nan")
             true_std = float(np.std(y_valid)) if y_valid.size else float("nan")
@@ -716,6 +770,7 @@ def predict_sample(
         fs=float(cfg["fusion"].get("fps", 25.0)),
         order=int(cfg["fusion"].get("final_order", 1)),
     )
+    y_pred_smoothed = f_trick(read_training_labels_for_subject(cfg, sample.subject), y_pred_smoothed)
     overlays = {name: x_np[:, idx].astype(np.float32) for idx, name in enumerate(feature_names)}
     return y_pred_raw, y_pred_smoothed, overlays
 

@@ -1,10 +1,10 @@
 {
-  "created_at_utc": "2026-04-19T16:13:24.072904+00:00",
+  "created_at_utc": "2026-04-28T05:34:16.232334+00:00",
   "n_prediction_files": 10,
   "n_samples_evaluated": 10,
   "n_samples_skipped": 0,
-  "overall_ccc": 0.1340115835376471,
-  "overall_mae": 0.3451661012818655,
-  "overall_rmse": 0.44641746327691895,
-  "mean_sample_ccc": 0.08512167802692767
+  "overall_ccc": 0.6513343795811986,
+  "overall_mae": 0.29644677330211866,
+  "overall_rmse": 0.38410620585582655,
+  "mean_sample_ccc": 0.624072185671041
 }
