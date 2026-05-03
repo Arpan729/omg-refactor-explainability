@@ -145,6 +145,9 @@ def iter_samples(cfg: dict[str, Any], split: str) -> list[SampleIndex]:
     elif split == "val":
         subjects = split_cfg["subjects_val"]
         stories = split_cfg["stories_val"]
+    elif split == "test":
+        subjects = split_cfg["subjects_test"]
+        stories = split_cfg["stories_test"]
     else:
         raise ValueError(f"Invalid split: {split}")
     return [SampleIndex(subject=s, story=t, split=split) for s in subjects for t in stories]
@@ -157,13 +160,20 @@ def iter_samples_for_stories(cfg: dict[str, Any], split: str, stories: list[int]
         subjects = split_cfg["subjects_train"]
     elif split == "val":
         subjects = split_cfg["subjects_val"]
+    elif split == "test":
+        subjects = split_cfg["subjects_test"]
     else:
         raise ValueError(f"Invalid split: {split}")
     return [SampleIndex(subject=s, story=t, split=split) for s in subjects for t in stories]
 
 
 def annotation_path(cfg: dict[str, Any], sample: SampleIndex) -> Path:
-    base = cfg["paths"]["train_ann_dir"] if sample.split == "train" else cfg["paths"]["val_ann_dir"]
+    if sample.split == "train":
+        base = cfg["paths"]["train_ann_dir"]
+    elif sample.split == "test":
+        base = cfg["paths"]["test_ann_dir"]
+    else:
+        base = cfg["paths"]["val_ann_dir"]
     return Path(base) / f"Subject_{sample.subject}_Story_{sample.story}.csv"
 
 

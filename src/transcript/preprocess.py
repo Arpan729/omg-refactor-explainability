@@ -14,6 +14,12 @@ from common import SampleIndex, annotation_path, feature_path, iter_samples, loa
 def parse_args():
     p = argparse.ArgumentParser(description="Build aligned transcript features.")
     p.add_argument("--config", type=str, default="transcript/config.yaml")
+    p.add_argument(
+        "--split",
+        choices=["train", "val", "test", "all"],
+        default="all",
+        help="Which split to preprocess (default: all)",
+    )
     return p.parse_args()
 
 
@@ -126,8 +132,11 @@ def main():
     warriner = pd.read_csv(lex_dir / "Ratings_Warriner_et_al.csv")
     depeche = pd.read_csv(lex_dir / "DepecheMood_english_token_full.tsv", delimiter="\t")
 
-    all_samples = iter_samples(cfg, "train") + iter_samples(cfg, "val")
-    # De-duplicate if train/val overlap by accident.
+    if args.split == "all":
+        all_samples = iter_samples(cfg, "train") + iter_samples(cfg, "val") + iter_samples(cfg, "test")
+    else:
+        all_samples = iter_samples(cfg, args.split)
+    # De-duplicate if splits overlap by accident.
     unique = {(s.subject, s.story): s for s in all_samples}
 
     built = 0

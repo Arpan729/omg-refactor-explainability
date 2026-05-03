@@ -24,8 +24,9 @@ if TYPE_CHECKING:
 
 
 def parse_args():
-    p = argparse.ArgumentParser(description="Predict transcript_next val outputs to parquet.")
+    p = argparse.ArgumentParser(description="Predict transcript outputs to parquet.")
     p.add_argument("--config", type=str, default="transcript/config.yaml")
+    p.add_argument("--split", choices=["val", "test"], default="val")
     return p.parse_args()
 
 
@@ -107,12 +108,19 @@ def predict_samples(
 def main():
     args = parse_args()
     cfg = load_config(args.config)
+    base_pred_dir = Path(cfg["paths"]["prediction_dir"])
+    if args.split == "test":
+        stories = list(cfg["split"]["stories_test"])
+        output_dir = base_pred_dir / "test"
+    else:
+        stories = list(cfg["split"]["stories_val"])
+        output_dir = base_pred_dir
     predict_samples(
         cfg,
         checkpoint_path(cfg),
-        list(cfg["split"]["stories_val"]),
-        Path(cfg["paths"]["prediction_dir"]),
-        split="val",
+        stories,
+        output_dir,
+        split=args.split,
     )
 
 
