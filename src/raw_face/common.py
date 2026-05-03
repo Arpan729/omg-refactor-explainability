@@ -427,16 +427,18 @@ class RawFace3DCNNModel(nn.Module):
         self.backbone = nn.Sequential(
             nn.Conv3d(1, c1, kernel_size=3, padding=1),
             nn.ReLU(),
+            nn.BatchNorm3d(c1),
             nn.Conv3d(c1, c1, kernel_size=3, padding=1),
             nn.ReLU(),
-            nn.MaxPool3d(kernel_size=2, stride=2, padding=0),
             nn.BatchNorm3d(c1),
+            nn.MaxPool3d(kernel_size=2, stride=2, padding=0),
             nn.Conv3d(c1, c2, kernel_size=3, padding=1),
             nn.ReLU(),
+            nn.BatchNorm3d(c2),
             nn.Conv3d(c2, c2, kernel_size=3, padding=1),
             nn.ReLU(),
-            nn.MaxPool3d(kernel_size=2, stride=2, padding=0),
             nn.BatchNorm3d(c2),
+            nn.MaxPool3d(kernel_size=2, stride=2, padding=0),
             nn.AdaptiveAvgPool3d((1, 1, 1)),
         )
 
