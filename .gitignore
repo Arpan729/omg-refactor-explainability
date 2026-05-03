@@ -43,3 +43,8 @@ src/landmarks/tests/__pycache__
 src/ensemble_fusion/artifacts/checkpoints
 src/ensemble_fusion/__pycache__
 src/ensemble_fusion/tests/__pycache__
+src/raw_data.zip
+src/fullbody/artifacts/fullbody.zip
+src/raw_data/testing/annotation
+src/raw_data/testing/audio
+src/raw_data/testing/video
