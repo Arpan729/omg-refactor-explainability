@@ -1,7 +1,10 @@
 #!/bin/bash
-VALIDATION_DIRECTORY="../validation/audio";
-TRAINING_DIRECTORY="../training/audio";
-TESTING_DIRECTORY="../testing/audio";
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+RAW_DATA_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+VALIDATION_DIRECTORY="$RAW_DATA_DIR/validation/audio"
+TRAINING_DIRECTORY="$RAW_DATA_DIR/training/audio"
+TESTING_DIRECTORY="$RAW_DATA_DIR/testing/audio"
 
 if [ ! -d "$VALIDATION_DIRECTORY" ]; then
     mkdir "$VALIDATION_DIRECTORY"
@@ -18,17 +21,17 @@ if [ ! -d "$TESTING_DIRECTORY" ]; then
     echo "Testing Directory created."
 fi
 
-for file in ../validation/video/*.mp4; do
+for file in "$RAW_DATA_DIR/validation/video/"*.mp4; do
     filename=$(basename "$file" .mp4)
-    ffmpeg -n -i "$file" -vn -ac 1 -ar 16000 -acodec pcm_s16le "../validation/audio/${filename}.mp4.wav"
+    ffmpeg -n -i "$file" -vn -ac 1 -ar 16000 -acodec pcm_s16le "$RAW_DATA_DIR/validation/audio/${filename}.mp4.wav"
 done
 
-for file in ../training/video/*.mp4; do
+for file in "$RAW_DATA_DIR/training/video/"*.mp4; do
     filename=$(basename "$file" .mp4)
-    ffmpeg -n -i "$file" -vn -ac 1 -ar 16000 -acodec pcm_s16le "../training/audio/${filename}.mp4.wav"
+    ffmpeg -n -i "$file" -vn -ac 1 -ar 16000 -acodec pcm_s16le "$RAW_DATA_DIR/training/audio/${filename}.mp4.wav"
 done
 
-for file in ../testing/video/*.mp4; do
+for file in "$RAW_DATA_DIR/testing/video/"*.mp4; do
     filename=$(basename "$file" .mp4)
-    ffmpeg -n -i "$file" -vn -ac 1 -ar 16000 -acodec pcm_s16le "../testing/audio/${filename}.mp4.wav"
+    ffmpeg -n -i "$file" -vn -ac 1 -ar 16000 -acodec pcm_s16le "$RAW_DATA_DIR/testing/audio/${filename}.mp4.wav"
 done
