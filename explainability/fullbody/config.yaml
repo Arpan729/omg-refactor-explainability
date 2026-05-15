@@ -1,0 +1,42 @@
+paths:
+  train_videos_dir: ../../src/raw_data/training/video
+  val_videos_dir: ../../src/raw_data/validation/video
+  train_fullbody_dir: ../../src/fullbody/artifacts/fullbody/train
+  val_fullbody_dir: ../../src/fullbody/artifacts/fullbody/val
+  feature_dir: ../../src/fullbody/artifacts/features
+  checkpoint_dir: ../../src/fullbody/artifacts/checkpoints
+  prediction_dir: ../../src/fullbody/artifacts/predictions
+  train_ann_dir: ../../src/raw_data/training/annotation
+  val_ann_dir: ../../src/raw_data/validation/annotation
+
+split:
+  manifest_id: fullbody_v1
+  subjects_train: [1]
+  subjects_val: [1]
+  stories_train: [2]
+  stories_val: [1]
+
+audio:
+  fps: 25.0
+
+extract:
+  detector_upsample: 1
+  image_size: 128
+
+model:
+  hidden_dim: 32
+  seq_len: 16
+  dropout: 0.0
+
+train:
+  epochs: 100
+  batch_size: 512
+  lr: 0.000001
+  weight_decay: 0.0
+  patience: 20
+  seed: 42
+  device: auto
+
+predict:
+  batch_size: 1024
+  device: auto
