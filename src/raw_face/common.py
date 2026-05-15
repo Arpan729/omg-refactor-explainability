@@ -164,6 +164,17 @@ def iter_samples(cfg: dict[str, Any], split: str) -> list[SampleIndex]:
     return [SampleIndex(subject=s, story=t, split=split) for s in subjects for t in stories]
 
 
+def iter_samples_for_stories(cfg: dict[str, Any], split: str, stories: list[int]) -> list[SampleIndex]:
+    """Iterate subject×story combinations for an explicit story list (e.g. OOF holdout prediction)."""
+    if split == "train":
+        subjects = cfg["split"]["subjects_train"]
+    elif split == "val":
+        subjects = cfg["split"]["subjects_val"]
+    else:
+        raise ValueError(f"Invalid split: {split}")
+    return [SampleIndex(subject=s, story=t, split=split) for s in subjects for t in stories]
+
+
 def video_path(cfg: dict[str, Any], sample: SampleIndex) -> Path:
     base = cfg["paths"]["train_videos_dir"] if sample.split == "train" else cfg["paths"]["val_videos_dir"]
     return Path(base) / f"Subject_{sample.subject}_Story_{sample.story}.mp4"
@@ -416,16 +427,18 @@ class RawFace3DCNNModel(nn.Module):
         self.backbone = nn.Sequential(
             nn.Conv3d(1, c1, kernel_size=3, padding=1),
             nn.ReLU(),
+            nn.BatchNorm3d(c1),
             nn.Conv3d(c1, c1, kernel_size=3, padding=1),
             nn.ReLU(),
-            nn.MaxPool3d(kernel_size=2, stride=2, padding=0),
             nn.BatchNorm3d(c1),
+            nn.MaxPool3d(kernel_size=2, stride=2, padding=0),
             nn.Conv3d(c1, c2, kernel_size=3, padding=1),
             nn.ReLU(),
+            nn.BatchNorm3d(c2),
             nn.Conv3d(c2, c2, kernel_size=3, padding=1),
             nn.ReLU(),
-            nn.MaxPool3d(kernel_size=2, stride=2, padding=0),
             nn.BatchNorm3d(c2),
+            nn.MaxPool3d(kernel_size=2, stride=2, padding=0),
             nn.AdaptiveAvgPool3d((1, 1, 1)),
         )
 
@@ -454,8 +467,10 @@ def denorm_target(y_norm: np.ndarray, target_min: float, target_max: float) -> n
     return y_norm * (target_max - target_min + 1e-8) + target_min
 
 
-def write_prediction_parquet(cfg: dict[str, Any], sample: SampleIndex, y_pred: np.ndarray) -> Path:
-    out_dir = Path(cfg["paths"]["prediction_dir"])
+def write_prediction_parquet(
+    cfg: dict[str, Any], sample: SampleIndex, y_pred: np.ndarray, output_dir: str | Path | None = None
+) -> Path:
+    out_dir = Path(output_dir) if output_dir is not None else Path(cfg["paths"]["prediction_dir"])
     out_dir.mkdir(parents=True, exist_ok=True)
     fps = float(cfg["audio"]["fps"])
     frame_idx = np.arange(len(y_pred), dtype=np.int32)

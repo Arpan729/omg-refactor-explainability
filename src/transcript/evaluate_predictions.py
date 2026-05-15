@@ -33,7 +33,9 @@ REQUIRED_COLUMNS = [
 def parse_args():
     p = argparse.ArgumentParser(description="Evaluate transcript prediction parquet files with CCC and plots.")
     p.add_argument("--config", type=str, default="transcript/config.yaml")
-    p.add_argument("--output-dir", type=str, default="transcript/artifacts/model_evaluation")
+    p.add_argument("--split", choices=["val", "test"], default="val")
+    p.add_argument("--output-dir", type=str, default=None,
+                   help="Output directory (default: model_evaluation for val, model_evaluation_test for test)")
     p.add_argument("--max-plots", type=int, default=10)
     p.add_argument("--overwrite", action="store_true")
     return p.parse_args()
@@ -187,11 +189,12 @@ def _plot_window_series(
     plt.close(fig)
 
 
-def run_evaluation(cfg: dict[str, Any], output_dir: Path, max_plots: int, overwrite: bool) -> tuple[pd.DataFrame, dict[str, Any]]:
+def run_evaluation(cfg: dict[str, Any], output_dir: Path, max_plots: int, overwrite: bool, split: str = "val") -> tuple[pd.DataFrame, dict[str, Any]]:
     _prepare_output_dir(output_dir, overwrite=overwrite)
 
-    pred_dir = Path(cfg["paths"]["prediction_dir"])
-    ann_dir = Path(cfg["paths"]["val_ann_dir"])
+    base_pred_dir = Path(cfg["paths"]["prediction_dir"])
+    pred_dir = base_pred_dir / "test" if split == "test" else base_pred_dir
+    ann_dir = Path(cfg["paths"]["test_ann_dir"] if split == "test" else cfg["paths"]["val_ann_dir"])
     prediction_files = sorted(pred_dir.glob("*.parquet"))
 
     rows: list[dict[str, Any]] = []
@@ -318,12 +321,18 @@ def run_evaluation(cfg: dict[str, Any], output_dir: Path, max_plots: int, overwr
 def main() -> None:
     args = parse_args()
     cfg = load_config(args.config)
-    output_dir = Path(args.output_dir).resolve()
+    if args.output_dir is not None:
+        output_dir = Path(args.output_dir).resolve()
+    elif args.split == "test":
+        output_dir = Path("transcript/artifacts/model_evaluation_test").resolve()
+    else:
+        output_dir = Path("transcript/artifacts/model_evaluation").resolve()
     metrics_df, summary = run_evaluation(
         cfg=cfg,
         output_dir=output_dir,
         max_plots=int(args.max_plots),
         overwrite=bool(args.overwrite),
+        split=args.split,
     )
 
     print(f"Wrote metrics: {output_dir / 'metrics_per_sample.csv'}")

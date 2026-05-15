@@ -24,18 +24,18 @@ extract:
   detector_upsample: 1
 
 model:
-  window_size: 5
+  window_size: 25
   conv_channels: [100, 100, 160, 160]
-  kernel_size: 2
+  kernel_size: 4
   dense_dim: 32
   dropout: 0.0
 
 train:
-  epochs: 100
+  epochs: 1000
   batch_size: 512
-  lr: 0.000001
+  lr: 0.0001
   weight_decay: 0.0
-  patience: 20
+  patience: 50
   seed: 42
   device: auto
 

@@ -1,16 +1,17 @@
 from __future__ import annotations
 
 import argparse
+import copy
+from pathlib import Path
 
 import numpy as np
 
 from common import (
     FullBodyResNet3DModel,
-    SampleIndex,
     checkpoint_path,
     choose_device,
     denorm_target,
-    iter_samples,
+    iter_samples_for_stories,
     load_aligned,
     load_config,
     validate_prediction_parquet,
@@ -39,31 +40,37 @@ def predict_frames(model, xw: np.ndarray, batch_size: int, device: "torch.device
     return np.concatenate(outputs) if outputs else np.zeros((0,), dtype=np.float32)
 
 
-def main():
+def predict_samples(
+    cfg: dict,
+    ckpt_path: Path,
+    target_stories: list[int],
+    output_dir: Path,
+    split: str = "val",
+    device_flag: str | None = None,
+) -> list[Path]:
+    """Generate predictions for subject×target_stories. Returns written parquet paths."""
     import torch
 
-    args = parse_args()
-    cfg = load_config(args.config)
-
-    device = choose_device(str(cfg["predict"]["device"]))
+    cfg = copy.deepcopy(cfg)
+    device = choose_device(str(device_flag or cfg["predict"]["device"]))
     batch_size = int(cfg["predict"]["batch_size"])
     seq_len = int(cfg["model"]["seq_len"])
     print(f"Using device: {device}")
 
-    ckpt = checkpoint_path(cfg)
-    if not ckpt.exists():
-        raise FileNotFoundError(f"Checkpoint missing: {ckpt}")
+    ckpt_path = Path(ckpt_path)
+    if not ckpt_path.exists():
+        raise FileNotFoundError(f"Checkpoint missing: {ckpt_path}")
 
-    saved = torch.load(ckpt, map_location=device)
+    saved = torch.load(ckpt_path, map_location=device)
     target_min = float(saved["target_min"])
     target_max = float(saved["target_max"])
 
     model = FullBodyResNet3DModel(cfg).to(device)
     model.load_state_dict(saved["model_state"])
 
+    out_paths: list[Path] = []
     built = 0
-    for sample in iter_samples(cfg, "val"):
-        sample = SampleIndex(subject=sample.subject, story=sample.story, split="val")
+    for sample in iter_samples_for_stories(cfg, split, target_stories):
         try:
             x, y = load_aligned(cfg, sample)
         except FileNotFoundError as exc:
@@ -74,12 +81,32 @@ def main():
         preds = predict_frames(model, xw, batch_size, device)
         preds = denorm_target(preds, target_min, target_max)
 
-        out_path = write_prediction_parquet(cfg, sample, preds.astype(np.float32), frame_idx=frame_idx)
+        down_sampling = int(cfg["model"]["down_sampling"])
+        frame_idx_full = (frame_idx * down_sampling).astype(np.int64)
+
+        out_path = write_prediction_parquet(
+            cfg, sample, preds.astype(np.float32), frame_idx=frame_idx_full, output_dir=output_dir
+        )
         validate_prediction_parquet(out_path)
         print(f"Wrote {out_path}")
+        out_paths.append(out_path)
         built += 1
 
     print(f"Done. Wrote {built} parquet files.")
+    del model
+    return out_paths
+
+
+def main():
+    args = parse_args()
+    cfg = load_config(args.config)
+    predict_samples(
+        cfg,
+        checkpoint_path(cfg),
+        list(cfg["split"]["stories_val"]),
+        Path(cfg["paths"]["prediction_dir"]),
+        split="val",
+    )
 
 
 if __name__ == "__main__":

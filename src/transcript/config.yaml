@@ -2,6 +2,7 @@ paths:
   srt_dir: raw_data/transcript/srt
   train_ann_dir: raw_data/training/annotation
   val_ann_dir: raw_data/validation/annotation
+  test_ann_dir: raw_data/testing/annotation
   lexicon_dir: raw_data/transcript/lexicons
   feature_dir: transcript/artifacts/features
   checkpoint_dir: transcript/artifacts/checkpoints
@@ -11,8 +12,10 @@ split:
   manifest_id: transcript_v1
   subjects_train: [1,2,3,4,5,6,7,8,9,10]
   subjects_val: [1,2,3,4,5,6,7,8,9,10]
+  subjects_test: [1,2,3,4,5,6,7,8,9,10]
   stories_train: [1,4,5,8]
   stories_val: [2]
+  stories_test: [3,6,7]
 
 model:
   window_size: 100
@@ -24,10 +27,10 @@ model:
   dropout: 0.2
 
 train:
-  epochs: 20
+  epochs: 200
   batch_size: 256
   lr: 0.0001
-  patience: 5
+  patience: 20
   device: auto
 
 predict:

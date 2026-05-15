@@ -1,15 +1,17 @@
 from __future__ import annotations
 
 import argparse
+import copy
+from pathlib import Path
+from typing import TYPE_CHECKING
 
 import numpy as np
 
 from common import (
-    SampleIndex,
     TranscriptLSTMModel,
     checkpoint_path,
     choose_device,
-    iter_samples,
+    iter_samples_for_stories,
     load_config,
     read_features,
     validate_prediction_parquet,
@@ -17,14 +19,18 @@ from common import (
     write_prediction_parquet,
 )
 
+if TYPE_CHECKING:
+    import torch
+
 
 def parse_args():
-    p = argparse.ArgumentParser(description="Predict transcript_next val outputs to parquet.")
+    p = argparse.ArgumentParser(description="Predict transcript outputs to parquet.")
     p.add_argument("--config", type=str, default="transcript/config.yaml")
+    p.add_argument("--split", choices=["val", "test"], default="val")
     return p.parse_args()
 
 
-def predict_windows(model, x_windows: np.ndarray, subject_id: int, batch_size: int, device: torch.device) -> np.ndarray:
+def predict_windows(model, x_windows: np.ndarray, subject_id: int, batch_size: int, device) -> np.ndarray:
     import torch
 
     model.eval()
@@ -40,30 +46,36 @@ def predict_windows(model, x_windows: np.ndarray, subject_id: int, batch_size: i
     return np.concatenate(outputs) if outputs else np.zeros((0,), dtype=np.float32)
 
 
-def main():
+def predict_samples(
+    cfg: dict,
+    ckpt_path: Path,
+    target_stories: list[int],
+    output_dir: Path,
+    split: str = "val",
+    device_flag: str | None = None,
+) -> list[Path]:
+    """Generate predictions for subject×target_stories. Returns written parquet paths."""
     import torch
 
-    args = parse_args()
-    cfg = load_config(args.config)
-
-    device = choose_device(str(cfg["predict"]["device"]))
+    cfg = copy.deepcopy(cfg)
+    device = choose_device(str(device_flag or cfg["predict"]["device"]))
     batch_size = int(cfg["predict"]["batch_size"])
     print(f"Using device: {device}")
 
-    ckpt = checkpoint_path(cfg)
-    if not ckpt.exists():
-        raise FileNotFoundError(f"Checkpoint missing: {ckpt}")
+    ckpt_path = Path(ckpt_path)
+    if not ckpt_path.exists():
+        raise FileNotFoundError(f"Checkpoint missing: {ckpt_path}")
 
-    saved = torch.load(ckpt, map_location=device)
+    saved = torch.load(ckpt_path, map_location=device)
     label_min = float(saved["label_min"])
     label_max = float(saved["label_max"])
 
     model = TranscriptLSTMModel(cfg).to(device)
     model.load_state_dict(saved["model_state"])
 
+    out_paths: list[Path] = []
     built = 0
-    for sample in iter_samples(cfg, "val"):
-        sample = SampleIndex(subject=sample.subject, story=sample.story, split="val")
+    for sample in iter_samples_for_stories(cfg, split, target_stories):
         try:
             x = read_features(cfg, sample)
         except FileNotFoundError as exc:
@@ -82,12 +94,34 @@ def main():
         preds = predict_windows(model, xw, sample.subject, batch_size, device)
         preds = preds * (label_max - label_min + 1e-8) + label_min
 
-        out_path = write_prediction_parquet(cfg, sample, preds.astype(np.float32))
+        out_path = write_prediction_parquet(cfg, sample, preds.astype(np.float32), output_dir=output_dir)
         validate_prediction_parquet(out_path)
         print(f"Wrote {out_path}")
+        out_paths.append(out_path)
         built += 1
 
     print(f"Done. Wrote {built} parquet files.")
+    del model
+    return out_paths
+
+
+def main():
+    args = parse_args()
+    cfg = load_config(args.config)
+    base_pred_dir = Path(cfg["paths"]["prediction_dir"])
+    if args.split == "test":
+        stories = list(cfg["split"]["stories_test"])
+        output_dir = base_pred_dir / "test"
+    else:
+        stories = list(cfg["split"]["stories_val"])
+        output_dir = base_pred_dir
+    predict_samples(
+        cfg,
+        checkpoint_path(cfg),
+        stories,
+        output_dir,
+        split=args.split,
+    )
 
 
 if __name__ == "__main__":

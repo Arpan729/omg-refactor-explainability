@@ -1,0 +1,8 @@
+paths:
+  ensemble_config: ../../src/ensemble_fusion/config.yaml
+  checkpoint: ../../src/ensemble_fusion/artifacts/checkpoints/best_model.pkl
+  output_dir: artifacts
+
+captum:
+  n_steps: 1
+  internal_batch_size: 100000

@@ -37,14 +37,14 @@ model:
   num_layers: 1
   dropout: 0.3
   use_batch_norm: true
-  subject_embed_dim: 8
+  subject_embed_dim: 0
 
 train:
-  epochs: 20
+  epochs: 100
   batch_size: 50
   lr: 0.0001
   weight_decay: 0.0
-  patience: 5
+  patience: 20
   seed: 42
   device: auto
 
